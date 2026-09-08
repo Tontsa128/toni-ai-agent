@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "defaults": {
+    "filesystem": {
+      "read": "allow",
+      "write": "workspace",
+      "delete": "approval"
+    },
+    "terminal": {
+      "safe_commands": "allow",
+      "unknown_commands": "approval",
+      "destructive_commands": "approval"
+    },
+    "git": {
+      "read": "allow",
+      "commit": "approval",
+      "push": "approval"
+    },
+    "browser": {
+      "read": "approval",
+      "write": "approval",
+      "submit": "approval"
+    },
+    "system": {
+      "settings": "approval",
+      "administrator": "never_auto"
+    }
+  },
+  "school": {
+    "read_assignments": "allow",
+    "analyse_assignments": "allow",
+    "draft_answers": "allow",
+    "write_to_school_portal": "approval",
+    "submit_assignment": "approval",
+    "send_messages": "approval"
+  }
+}
