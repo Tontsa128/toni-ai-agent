@@ -7,7 +7,7 @@ export interface ModelProvider { complete(request: ModelRequest): Promise<ModelR
 export class OpenAIProvider implements ModelProvider {
   private readonly client: OpenAI;
   private readonly model: string;
-  constructor(model = process.env.OPENAI_MODEL ?? "gpt-5.5") {
+  constructor(model = process.env.OPENAI_MODEL ?? "gpt-5.6-luna") {
     if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
     this.client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     this.model = model;
