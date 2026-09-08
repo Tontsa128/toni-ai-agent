@@ -1,63 +1,77 @@
 # Toni AI Agent
 
-Personal AI agent platform for coding, school assistance, research and controlled computer automation.
+Personal AI operating-system agent for coding, school assistance, research and controlled computer automation.
 
-## Vision
+## Architecture
 
-Toni AI is designed as a local-first assistant that can:
+```text
+User
+ ↓
+Orchestrator
+ ↓
+Reasoning Layer → Plan Validator
+ ↓
+Toolchain Supervisor
+ ↓
+Permission Engine → Human Approval
+ ↓
+Sandbox / Tools
+ ↓
+Result Validation
+ ↓
+Self-Debugging Engine
+ ↓
+Project Memory
+ ↓
+Model Provider
+```
 
-- help build and maintain software projects
-- work with GitHub and VS Code
-- read and analyse school assignments and learning materials
-- help improve answers and explain subjects
-- interact with Microsoft 365 through an authenticated browser session when permitted
-- automate repetitive computer tasks
-- require explicit approval before sensitive or consequential actions
+## Modules
+
+- `agent/core` — orchestration and planning
+- `agent/reasoning` — structured planning and validation
+- `agent/supervisor` — central tool security gate
+- `agent/sandbox` — execution boundary; production execution requires a real OS/container sandbox adapter
+- `agent/approvals` and `agent/hitl` — human-in-the-loop control
+- `agent/debugging` — error classification and self-debugging foundation
+- `agent/memory` — project-scoped long-term memory interfaces
+- `agent/telemetry` — audit events and health monitoring
+- `agent/providers` — model-provider abstraction and OpenAI adapter boundary
+- `agent/boot` — startup sequence
+- `tools` — controlled tool adapters
+- `school` — learning and school-account workflow
+- `docs` — architecture and integration rules
 
 ## Safety model
 
 ### Green — automatic
-- Read project files
-- Analyse code
-- Create or edit files inside the approved workspace
-- Run safe tests and development commands
-- Prepare drafts
+Read, analyse, prepare drafts, and safe workspace operations.
 
 ### Yellow — approval required
-- Install packages
-- Delete files
-- Run potentially destructive commands
-- Modify files outside the approved workspace
-- Send or upload content
+Package installation, external uploads, browser writes, GitHub writes and potentially destructive actions.
 
-### Red — always explicit approval
-- Submit school assignments
-- Send messages or emails
-- Push/deploy production changes
-- Change system settings
-- Use administrator privileges
-- Handle secrets, credentials or API keys
+### Red — explicit approval
+School submission, messages/email, production deployment, administrator operations, system changes and destructive commands.
 
-The agent must never bypass Microsoft 365 tenant policies, MFA, CAPTCHA, school access controls or other security controls.
+The model never gets unrestricted operating-system authority. Permissions and supervisor checks remain authoritative.
 
-## Planned modules
+## Model context protocol
 
-- `agent/` — orchestration, planning, approvals and memory
-- `tools/` — filesystem, terminal, Git, GitHub and browser tools
-- `school/` — assignments, learning materials and notes
-- `projects/` — user projects managed by the agent
-- `config/` — security and permission policies
+When asking a model for help, provide structured context: request, project state, relevant files, current error, previous attempts, constraints and acceptance criteria. Never include API keys, passwords, MFA codes or other secrets. Store concise plans and outcomes rather than hidden chain-of-thought.
 
-## Development roadmap
+## School safety
 
-1. Core agent and permission engine
-2. Local workspace and terminal tools
-3. Git/GitHub integration
-4. School Assistant mode
-5. Microsoft 365 browser workflow
+The assistant can explain, draft and review school work. It must respect the school's AI policy. It must never bypass Microsoft 365 tenant controls, MFA, CAPTCHA or access restrictions. Submission remains a human-approved action.
+
+## Roadmap
+
+1. Core safety and orchestration foundation — implemented
+2. Real sandbox adapter — next
+3. Full model tool-calling adapter
+4. Git/GitHub toolchain
+5. Browser automation with isolated profiles
 6. Computer automation
-7. Testing, audit logs and hardening
-
-## Principle
-
-**The AI can prepare and recommend. Toni decides before consequential actions happen.**
+7. School and research agents
+8. Multi-agent coordinator
+9. Persistent encrypted project memory
+10. Full testing, packaging and local installation
