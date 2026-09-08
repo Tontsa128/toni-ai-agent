@@ -1,30 +1,13 @@
 {
-  "version": 1,
+  "version": 2,
   "defaults": {
-    "filesystem": {
-      "read": "allow",
-      "write": "workspace",
-      "delete": "approval"
-    },
-    "terminal": {
-      "safe_commands": "allow",
-      "unknown_commands": "approval",
-      "destructive_commands": "approval"
-    },
-    "git": {
-      "read": "allow",
-      "commit": "approval",
-      "push": "approval"
-    },
-    "browser": {
-      "read": "approval",
-      "write": "approval",
-      "submit": "approval"
-    },
-    "system": {
-      "settings": "approval",
-      "administrator": "never_auto"
-    }
+    "filesystem": { "read": "allow", "write": "workspace", "delete": "approval" },
+    "terminal": { "safe_commands": "allow", "unknown_commands": "approval", "destructive_commands": "approval" },
+    "git": { "read": "allow", "commit": "approval", "push": "approval", "reset": "approval" },
+    "github": { "read": "allow", "write": "approval", "merge": "approval", "delete": "never_auto" },
+    "browser": { "read": "approval", "write": "approval", "submit": "approval", "download": "approval" },
+    "computer": { "read": "approval", "click": "approval", "type": "approval", "system": "never_auto" },
+    "system": { "settings": "approval", "administrator": "never_auto", "shutdown": "never_auto" }
   },
   "school": {
     "read_assignments": "allow",
@@ -33,5 +16,12 @@
     "write_to_school_portal": "approval",
     "submit_assignment": "approval",
     "send_messages": "approval"
+  },
+  "security": {
+    "secrets_in_logs": "never",
+    "secrets_in_memory": "never",
+    "bypass_mfa": "never",
+    "bypass_captcha": "never",
+    "bypass_tenant_controls": "never"
   }
 }
