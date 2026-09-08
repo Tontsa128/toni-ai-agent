@@ -1,0 +1,8 @@
+{
+  "workspaceRoot": ".",
+  "network": "deny",
+  "maxExecutionMs": 30000,
+  "maxOutputBytes": 200000,
+  "allowCommands": ["node", "npm", "npx", "pnpm", "yarn", "git", "tsc", "tsx", "python", "python3"],
+  "denyPatterns": ["rm -rf /", "rm -rf *", "format ", "format.com", "del /s /q", "shutdown", "reboot", "mkfs", "diskpart", "reg delete", "cipher /w"]
+}
