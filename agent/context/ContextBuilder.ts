@@ -13,15 +13,17 @@ export interface ContextSnapshot {
 
 export class ContextBuilder {
   build(context: AgentContext, extra: Partial<Omit<ContextSnapshot, "request" | "mode" | "workspace">> = {}): ContextSnapshot {
-    return {
+    const snapshot: ContextSnapshot = {
       request: context.userRequest,
       mode: context.mode,
-      workspace: context.workspace,
       projectState: extra.projectState ?? [],
       relevantFiles: extra.relevantFiles ?? [],
       errors: extra.errors ?? [],
       constraints: extra.constraints ?? ["Never expose secrets", "Never bypass MFA/CAPTCHA/access controls"],
       acceptanceCriteria: extra.acceptanceCriteria ?? []
     };
+
+    if (context.workspace !== undefined) snapshot.workspace = context.workspace;
+    return snapshot;
   }
 }
