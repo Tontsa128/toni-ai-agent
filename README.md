@@ -45,6 +45,7 @@ Encrypted Project Memory + Audit
 - read-focused Microsoft Graph school adapter
 - research source contracts, bounded HTTP retrieval and OpenAI web-search adapter
 - multi-agent task coordinator
+- Windows bootstrap script
 
 ## Safety model
 
@@ -100,6 +101,7 @@ npm start -- "Tarkista projektin tila"
 11. Approval resume/stateful tool continuation — implemented in-memory
 12. Self-debugging closed loop — implemented as bounded policy
 13. Persistent encrypted memory and audit storage — implemented
-14. Full integration/CI tests and Windows installer
+14. Windows bootstrap — implemented
+15. CI/integration verification and final end-to-end validation — in progress
 
 See the phase documents in `docs/` for implementation rules.
