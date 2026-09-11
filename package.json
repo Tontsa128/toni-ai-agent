@@ -10,7 +10,7 @@
     "start": "node dist/app/cli.js",
     "dev": "node --watch --import tsx app/cli.ts"
   },
-  "engines": { "node": ">=20" },
+  "engines": { "node": ">=22" },
   "dependencies": { "openai": "^7.9.0", "playwright": "^1.55.0" },
   "devDependencies": { "@types/node": "^22.15.0", "tsx": "^4.19.0", "typescript": "^5.8.0" }
 }
