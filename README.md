@@ -11,6 +11,8 @@ Orchestrator → Context Builder
  ↓
 Reasoning / Planner
  ↓
+OpenAI Tool Loop
+ ↓
 Toolchain Supervisor
  ↓
 Permission Engine → Human Approval
@@ -22,8 +24,6 @@ Result Validation
 Self-Debugging
  ↓
 Project Memory
- ↓
-OpenAI Responses API / Model Provider
 ```
 
 ## Implemented foundation
@@ -33,6 +33,8 @@ OpenAI Responses API / Model Provider
 - Windows-oriented workspace/command preflight and bounded terminal executor
 - typed tool registry and read-only Git layer
 - OpenAI Responses API provider boundary
+- bounded OpenAI function/tool execution loop
+- supervisor bridge that blocks yellow/red tool calls until approval
 - context builder that excludes secrets and records project constraints
 - Playwright browser adapter
 - Windows computer-control adapter with blocked credential/system-level input
@@ -60,7 +62,7 @@ Research adapters are read-only. HTTP retrieval is size- and timeout-bounded, ac
 
 ## OpenAI integration
 
-The agent uses the OpenAI Node SDK and Responses API through `agent/providers/OpenAIProvider.ts`. Set `OPENAI_API_KEY` locally and optionally `OPENAI_MODEL`. Current example default: `gpt-5.6-luna`. Never commit credentials, cookies, MFA codes or other secrets.
+The agent uses the OpenAI Node SDK and Responses API through `agent/providers/OpenAIProvider.ts`. The tool loop in `agent/providers/OpenAIToolLoop.ts` can process function calls, but actual execution passes through `SupervisedToolExecutor` and therefore the local permission/approval boundary. Set `OPENAI_API_KEY` locally and optionally `OPENAI_MODEL`. Current example default: `gpt-5.6-luna`.
 
 ## Development
 
@@ -83,9 +85,10 @@ npm start -- "Tarkista projektin tila"
 7. School/Microsoft 365 adapter — implemented as read-focused Graph integration
 8. Research/web source adapter — implemented
 9. GitHub write/PR adapter — approval-gated
-10. OpenAI tool-calling execution loop — next
-11. Self-debugging closed loop — next
-12. Persistent encrypted memory and audit storage
-13. Full integration/CI tests and Windows installer
+10. OpenAI tool-calling execution loop — implemented
+11. Approval resume/stateful tool continuation — next
+12. Self-debugging closed loop — next
+13. Persistent encrypted memory and audit storage
+14. Full integration/CI tests and Windows installer
 
 See the phase documents in `docs/` for implementation rules.
