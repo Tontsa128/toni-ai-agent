@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import type { ToolDefinition } from "./ToolRegistry.js";
+import type { ToolDefinition } from "../agent/tools/ToolRegistry.js";
 
 export interface GitReadInput { cwd: string; args: string[]; }
 
