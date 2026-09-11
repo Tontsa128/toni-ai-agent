@@ -35,6 +35,7 @@ Encrypted Project Memory + Audit
 - OpenAI Responses API provider boundary
 - bounded OpenAI function/tool execution loop
 - supervisor bridge that blocks yellow/red tool calls until approval
+- in-memory approval continuation for resuming an approved tool call
 - deterministic bounded self-debugging policy
 - AES-256-GCM encrypted project memory option
 - hash-chained audit logger with secret-pattern redaction
@@ -96,7 +97,7 @@ npm start -- "Tarkista projektin tila"
 8. Research/web source adapter — implemented
 9. GitHub write/PR adapter — approval-gated
 10. OpenAI tool-calling execution loop — implemented
-11. Approval resume/stateful tool continuation — next
+11. Approval resume/stateful tool continuation — implemented in-memory
 12. Self-debugging closed loop — implemented as bounded policy
 13. Persistent encrypted memory and audit storage — implemented
 14. Full integration/CI tests and Windows installer
