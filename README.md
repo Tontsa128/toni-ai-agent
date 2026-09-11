@@ -23,7 +23,7 @@ Result Validation
  ↓
 Self-Debugging
  ↓
-Project Memory
+Encrypted Project Memory + Audit
 ```
 
 ## Implemented foundation
@@ -36,13 +36,14 @@ Project Memory
 - bounded OpenAI function/tool execution loop
 - supervisor bridge that blocks yellow/red tool calls until approval
 - deterministic bounded self-debugging policy
+- AES-256-GCM encrypted project memory option
+- hash-chained audit logger with secret-pattern redaction
 - context builder that excludes secrets and records project constraints
 - Playwright browser adapter
 - Windows computer-control adapter with blocked credential/system-level input
 - read-focused Microsoft Graph school adapter
 - research source contracts, bounded HTTP retrieval and OpenAI web-search adapter
 - multi-agent task coordinator
-- project memory persistence with secret-pattern blocking
 
 ## Safety model
 
@@ -64,6 +65,10 @@ Research adapters are read-only. HTTP retrieval is size- and timeout-bounded, ac
 ## Self-debugging
 
 The self-debugger classifies observable failures, recommends targeted checks, bounds retries and stops when permission/access controls are involved. It stores concise failure summaries rather than hidden chain-of-thought and never grants itself permission to repair external state.
+
+## Memory and audit
+
+Production memory can use `EncryptedProjectMemory` with a 32-byte `TONI_MEMORY_KEY` supplied only by the host environment. `AuditLogger` writes an append-only hash-chained audit stream and redacts common secret-like key/value patterns before persistence. The audit layer records evidence; it does not replace permission checks.
 
 ## OpenAI integration
 
@@ -93,7 +98,7 @@ npm start -- "Tarkista projektin tila"
 10. OpenAI tool-calling execution loop — implemented
 11. Approval resume/stateful tool continuation — next
 12. Self-debugging closed loop — implemented as bounded policy
-13. Persistent encrypted memory and audit storage
+13. Persistent encrypted memory and audit storage — implemented
 14. Full integration/CI tests and Windows installer
 
 See the phase documents in `docs/` for implementation rules.
