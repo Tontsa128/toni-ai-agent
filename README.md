@@ -35,6 +35,7 @@ Project Memory
 - OpenAI Responses API provider boundary
 - bounded OpenAI function/tool execution loop
 - supervisor bridge that blocks yellow/red tool calls until approval
+- deterministic bounded self-debugging policy
 - context builder that excludes secrets and records project constraints
 - Playwright browser adapter
 - Windows computer-control adapter with blocked credential/system-level input
@@ -59,6 +60,10 @@ The model never receives unrestricted operating-system authority. The supervisor
 ## Research safety
 
 Research adapters are read-only. HTTP retrieval is size- and timeout-bounded, accepts only HTTP(S), and does not execute page scripts. The OpenAI web-search adapter is used for source discovery/synthesis; source URLs and retrieval times are retained when available. Research never receives passwords, API keys, cookies or MFA codes.
+
+## Self-debugging
+
+The self-debugger classifies observable failures, recommends targeted checks, bounds retries and stops when permission/access controls are involved. It stores concise failure summaries rather than hidden chain-of-thought and never grants itself permission to repair external state.
 
 ## OpenAI integration
 
@@ -87,7 +92,7 @@ npm start -- "Tarkista projektin tila"
 9. GitHub write/PR adapter — approval-gated
 10. OpenAI tool-calling execution loop — implemented
 11. Approval resume/stateful tool continuation — next
-12. Self-debugging closed loop — next
+12. Self-debugging closed loop — implemented as bounded policy
 13. Persistent encrypted memory and audit storage
 14. Full integration/CI tests and Windows installer
 
