@@ -58,7 +58,16 @@ export class VerificationEngine {
     const commands = this.availableCommands();
     const steps: VerificationStepResult[] = [];
     if (commands.length === 0) {
-      return { ok: true, steps: [{ name: "check", command: "", ok: true, skipped: true, reason: "No verification scripts are configured" }] };
+      return {
+        ok: true,
+        steps: [{
+          name: "check",
+          command: "",
+          ok: true,
+          skipped: true,
+          reason: "No verification scripts are configured"
+        }]
+      };
     }
 
     for (const item of commands) {
@@ -70,22 +79,25 @@ export class VerificationEngine {
         skipped: false,
         exitCode: result.exitCode,
         stdout: result.stdout,
-        stderr: result.stderr,
-        reason: result.reason
+        stderr: result.stderr
       };
+      if (result.reason !== undefined) step.reason = result.reason;
       steps.push(step);
+
       if (!result.ok) {
         const failure: DebugFailure = {
           operation: item.name,
           error: result.reason || result.stderr || `Command exited with code ${result.exitCode}`,
           attempt: 1
         };
-        return {
+        const repairPlan = this.debuggerPolicy?.analyse(failure);
+        const response: VerificationResult = {
           ok: false,
           steps,
-          failedStep: step,
-          repairPlan: this.debuggerPolicy?.analyse(failure)
+          failedStep: step
         };
+        if (repairPlan !== undefined) response.repairPlan = repairPlan;
+        return response;
       }
     }
     return { ok: true, steps };
