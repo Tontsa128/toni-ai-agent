@@ -77,7 +77,7 @@ export class InteractiveSession {
         `Keskustelutila: ${s.hasConversation ? "aktiivinen" : "tyhjä"}`, `Odottaa hyväksyntää: ${s.pendingApprovals}`
       ].join("\n") }; }
       case "approvals": { const ids = this.executor.continuations.listActionIds(); return { kind: "command", text: ids.length ? `Odottaa hyväksyntää:\n${ids.join("\n")}` : "Ei odottavia hyväksyntöjä." }; }
-      case "approve": return { kind: "command", text: command.actionId ? `Hyväksyntä: ${command.actionId}` : "Käyttö: /approve <actionId>" };
+      case "approve": return { kind: "command", text: command.actionId ? `Hyväksyntä pyydetty: ${command.actionId}` : "Käyttö: /approve <actionId>" };
       case "reject": if (!command.actionId) return { kind: "command", text: "Käyttö: /reject <actionId>" }; this.executor.reject(command.actionId); return { kind: "command", text: `Toiminto hylätty: ${command.actionId}` };
       case "model": if (!command.value) return { kind: "command", text: `Nykyinen malli: ${this.model}` }; this.model = command.value; this.previousResponseId = undefined; this.toolLoop = undefined; return { kind: "command", text: `Malli vaihdettu: ${this.model}` };
       case "reset": this.previousResponseId = undefined; this.requestCount = 0; return { kind: "command", text: "Keskustelutila nollattu." };
@@ -92,12 +92,20 @@ export class InteractiveSession {
   }
 
   async ask(input: string): Promise<ToolLoopResult> {
-    const result = await this.ensureToolLoop().run(input, defaultFunctionToolSpecs(), this.executor, [
-      "Olet Toni AI Agent, paikallinen ensisijaisesti suomenkielinen tekninen avustaja.",
-      "Inspect before editing. Älä arvaa. Käytä vain annettuja työkaluja.",
-      "Työkalut ovat turvallisuusvalvottuja. Hyväksyntää vaativaa toimintoa ei saa kiertää.",
-      "Älä väitä tehneesi muutosta, jota työkalu ei vahvista.", `Työtila: ${this.options.workspace}`
-    ].join("\n"));
-    this.previousResponseId = result.responseId; this.requestCount += 1; return result;
+    const result = await this.ensureToolLoop().run(
+      input,
+      defaultFunctionToolSpecs(),
+      this.executor,
+      [
+        "Olet Toni AI Agent, paikallinen ensisijaisesti suomenkielinen tekninen avustaja.",
+        "Inspect before editing. Älä arvaa. Käytä vain annettuja työkaluja.",
+        "Työkalut ovat turvallisuusvalvottuja. Hyväksyntää vaativaa toimintoa ei saa kiertää.",
+        "Älä väitä tehneesi muutosta, jota työkalu ei vahvista.", `Työtila: ${this.options.workspace}`
+      ].join("\n"),
+      this.previousResponseId
+    );
+    this.previousResponseId = result.responseId;
+    this.requestCount += 1;
+    return result;
   }
 }
