@@ -52,9 +52,9 @@ export class CodingAgent {
     this.executor = new SupervisedToolExecutor(orchestrator, registry, context);
     this.toolLoop = new OpenAIToolLoop(options);
     this.repairOptions = {
-      repairMaxAttempts: options.repairMaxAttempts,
-      verification: options.verification,
-      repair: options.repair
+      ...(options.repairMaxAttempts === undefined ? {} : { repairMaxAttempts: options.repairMaxAttempts }),
+      ...(options.verification === undefined ? {} : { verification: options.verification }),
+      ...(options.repair === undefined ? {} : { repair: options.repair })
     };
   }
 
@@ -73,11 +73,14 @@ export class CodingAgent {
       return { repository, loop };
     }
 
-    const coordinator = new CodingRepairCoordinator({
-      maxAttempts: this.repairOptions.repairMaxAttempts,
+    const coordinatorOptions = {
       verify: this.repairOptions.verification,
-      repair: this.repairOptions.repair
-    });
+      repair: this.repairOptions.repair,
+      ...(this.repairOptions.repairMaxAttempts === undefined
+        ? {}
+        : { maxAttempts: this.repairOptions.repairMaxAttempts })
+    };
+    const coordinator = new CodingRepairCoordinator(coordinatorOptions);
     const repair = await coordinator.run();
     return { repository, loop, repair };
   }
