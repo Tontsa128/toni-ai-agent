@@ -105,7 +105,7 @@ export class InteractiveSession {
     this.previousResponseId = resumed.responseId;
     this.requestCount += 1;
     if (resumed.pendingApproval) this.pendingToolApproval = resumed.pendingApproval;
-    return resumed.text || JSON.stringify(resumed.output ?? result.output, null, 2);
+    return resumed.text || JSON.stringify(result.output, null, 2);
   }
 
   async ask(input: string): Promise<ToolLoopResult> {
