@@ -18,7 +18,7 @@ if (request) {
   process.exit(0);
 }
 
-const session = new InteractiveSession({ workspace });
+const session = new InteractiveSession({ workspace, policy });
 const rl = createInterface({ input, output, terminal: true });
 
 console.log("Toni AI Agent");
@@ -28,8 +28,23 @@ try {
   while (true) {
     const line = await rl.question("toni> ");
     const command = parseSessionInput(line);
-    const reply = session.executeCommand(command);
 
+    if (command.type === "approve") {
+      if (!command.actionId) {
+        console.log("Käyttö: /approve <actionId>");
+        continue;
+      }
+      try {
+        const result = await session.approve(command.actionId);
+        console.log(`\nHyväksytty ja suoritettu ${command.actionId}:\n${result}\n`);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`\nHyväksyntä epäonnistui: ${message}\n`);
+      }
+      continue;
+    }
+
+    const reply = session.executeCommand(command);
     if (reply) {
       console.log(reply.text);
       if (reply.exit) break;
@@ -40,7 +55,7 @@ try {
 
     try {
       const answer = await session.ask(command.value);
-      console.log(`\n${answer}\n`);
+      console.log(`\n${answer.text}\n`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error(`\nVirhe: ${message}\n`);
