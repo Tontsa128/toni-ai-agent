@@ -42,7 +42,7 @@ export class VerificationEngine {
   constructor(
     private readonly scripts: Record<string, string>,
     private readonly run: VerificationRunner,
-    private readonly debugger?: Pick<SelfDebugger, "analyse">
+    private readonly debuggerPolicy?: Pick<SelfDebugger, "analyse">
   ) {}
 
   availableCommands(): VerificationCommand[] {
@@ -84,7 +84,7 @@ export class VerificationEngine {
           ok: false,
           steps,
           failedStep: step,
-          repairPlan: this.debugger?.analyse(failure)
+          repairPlan: this.debuggerPolicy?.analyse(failure)
         };
       }
     }
