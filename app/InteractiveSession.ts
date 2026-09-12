@@ -1,4 +1,4 @@
-import { OpenAIToolLoop, type ToolLoopResult } from "../agent/providers/OpenAIToolLoop.js";
+import { OpenAIToolLoop, type ToolLoopResult, type PendingToolApproval } from "../agent/providers/OpenAIToolLoop.js";
 import { SupervisedToolExecutor } from "../agent/core/SupervisedToolExecutor.js";
 import { AgentOrchestrator } from "../agent/core/AgentOrchestrator.js";
 import { createDefaultToolRegistry, defaultFunctionToolSpecs } from "../agent/tools/DefaultToolRegistry.js";
@@ -44,6 +44,7 @@ export class InteractiveSession {
   private toolLoop: OpenAIToolLoop | undefined;
   private model: string;
   private previousResponseId: string | undefined;
+  private pendingToolApproval: PendingToolApproval | undefined;
   private requestCount = 0;
 
   constructor(private readonly options: InteractiveSessionOptions) {
@@ -77,21 +78,40 @@ export class InteractiveSession {
         `Keskustelutila: ${s.hasConversation ? "aktiivinen" : "tyhjä"}`, `Odottaa hyväksyntää: ${s.pendingApprovals}`
       ].join("\n") }; }
       case "approvals": { const ids = this.executor.continuations.listActionIds(); return { kind: "command", text: ids.length ? `Odottaa hyväksyntää:\n${ids.join("\n")}` : "Ei odottavia hyväksyntöjä." }; }
-      case "approve": return { kind: "command", text: command.actionId ? `Hyväksyntä pyydetty: ${command.actionId}` : "Käyttö: /approve <actionId>" };
-      case "reject": if (!command.actionId) return { kind: "command", text: "Käyttö: /reject <actionId>" }; this.executor.reject(command.actionId); return { kind: "command", text: `Toiminto hylätty: ${command.actionId}` };
-      case "model": if (!command.value) return { kind: "command", text: `Nykyinen malli: ${this.model}` }; this.model = command.value; this.previousResponseId = undefined; this.toolLoop = undefined; return { kind: "command", text: `Malli vaihdettu: ${this.model}` };
-      case "reset": this.previousResponseId = undefined; this.requestCount = 0; return { kind: "command", text: "Keskustelutila nollattu." };
+      case "approve": return { kind: "command", text: command.actionId ? `Hyväksyntä suoritetaan komennolla /approve ${command.actionId}.` : "Käyttö: /approve <actionId>" };
+      case "reject": if (!command.actionId) return { kind: "command", text: "Käyttö: /reject <actionId>" }; this.executor.reject(command.actionId); if (this.pendingToolApproval?.actionId === command.actionId) this.pendingToolApproval = undefined; return { kind: "command", text: `Toiminto hylätty: ${command.actionId}` };
+      case "model": if (!command.value) return { kind: "command", text: `Nykyinen malli: ${this.model}` }; this.model = command.value; this.previousResponseId = undefined; this.pendingToolApproval = undefined; this.toolLoop = undefined; return { kind: "command", text: `Malli vaihdettu: ${this.model}` };
+      case "reset": this.previousResponseId = undefined; this.pendingToolApproval = undefined; this.requestCount = 0; return { kind: "command", text: "Keskustelutila nollattu." };
       case "exit": return { kind: "command", text: "Toni AI Agent suljetaan.", exit: true };
       case "request": return undefined;
     }
   }
 
   async approve(actionId: string): Promise<string> {
+    if (!this.pendingToolApproval || this.pendingToolApproval.actionId !== actionId) {
+      throw new Error(`No resumable approval found for action ${actionId}`);
+    }
+    const pending = this.pendingToolApproval;
     const result = await this.executor.approveAndResume(actionId);
-    return JSON.stringify(result.output, null, 2);
+    this.pendingToolApproval = undefined;
+
+    const resumed = await this.ensureToolLoop().resumeApprovedCall(
+      pending.responseId,
+      pending.callId,
+      result,
+      defaultFunctionToolSpecs(),
+      this.executor
+    );
+    this.previousResponseId = resumed.responseId;
+    this.requestCount += 1;
+    if (resumed.pendingApproval) this.pendingToolApproval = resumed.pendingApproval;
+    return resumed.text || JSON.stringify(resumed.output ?? result.output, null, 2);
   }
 
   async ask(input: string): Promise<ToolLoopResult> {
+    if (this.pendingToolApproval) {
+      throw new Error(`Approval required first: /approve ${this.pendingToolApproval.actionId}`);
+    }
     const result = await this.ensureToolLoop().run(
       input,
       defaultFunctionToolSpecs(),
@@ -105,6 +125,7 @@ export class InteractiveSession {
       this.previousResponseId
     );
     this.previousResponseId = result.responseId;
+    this.pendingToolApproval = result.pendingApproval;
     this.requestCount += 1;
     return result;
   }
