@@ -41,7 +41,7 @@ export function parseSessionInput(input: string): SessionCommand {
 export class InteractiveSession {
   private readonly orchestrator: AgentOrchestrator;
   private readonly executor: SupervisedToolExecutor;
-  private toolLoop: OpenAIToolLoop;
+  private toolLoop: OpenAIToolLoop | undefined;
   private model: string;
   private previousResponseId: string | undefined;
   private requestCount = 0;
@@ -52,7 +52,11 @@ export class InteractiveSession {
     this.executor = new SupervisedToolExecutor(this.orchestrator, createDefaultToolRegistry(options.workspace), {
       mode: "coding", workspace: options.workspace, userRequest: "interactive session"
     });
-    this.toolLoop = new OpenAIToolLoop({ model: this.model });
+  }
+
+  private ensureToolLoop(): OpenAIToolLoop {
+    if (!this.toolLoop) this.toolLoop = new OpenAIToolLoop({ model: this.model });
+    return this.toolLoop;
   }
 
   getState() { return {
@@ -75,7 +79,7 @@ export class InteractiveSession {
       case "approvals": { const ids = this.executor.continuations.listActionIds(); return { kind: "command", text: ids.length ? `Odottaa hyväksyntää:\n${ids.join("\n")}` : "Ei odottavia hyväksyntöjä." }; }
       case "approve": return { kind: "command", text: command.actionId ? `Hyväksyntä: ${command.actionId}` : "Käyttö: /approve <actionId>" };
       case "reject": if (!command.actionId) return { kind: "command", text: "Käyttö: /reject <actionId>" }; this.executor.reject(command.actionId); return { kind: "command", text: `Toiminto hylätty: ${command.actionId}` };
-      case "model": if (!command.value) return { kind: "command", text: `Nykyinen malli: ${this.model}` }; this.model = command.value; this.previousResponseId = undefined; this.toolLoop = new OpenAIToolLoop({ model: this.model }); return { kind: "command", text: `Malli vaihdettu: ${this.model}. Keskusteluketju aloitetaan uudelleen.` };
+      case "model": if (!command.value) return { kind: "command", text: `Nykyinen malli: ${this.model}` }; this.model = command.value; this.previousResponseId = undefined; this.toolLoop = undefined; return { kind: "command", text: `Malli vaihdettu: ${this.model}` };
       case "reset": this.previousResponseId = undefined; this.requestCount = 0; return { kind: "command", text: "Keskustelutila nollattu." };
       case "exit": return { kind: "command", text: "Toni AI Agent suljetaan.", exit: true };
       case "request": return undefined;
@@ -88,7 +92,7 @@ export class InteractiveSession {
   }
 
   async ask(input: string): Promise<ToolLoopResult> {
-    const result = await this.toolLoop.run(input, defaultFunctionToolSpecs(), this.executor, [
+    const result = await this.ensureToolLoop().run(input, defaultFunctionToolSpecs(), this.executor, [
       "Olet Toni AI Agent, paikallinen ensisijaisesti suomenkielinen tekninen avustaja.",
       "Inspect before editing. Älä arvaa. Käytä vain annettuja työkaluja.",
       "Työkalut ovat turvallisuusvalvottuja. Hyväksyntää vaativaa toimintoa ei saa kiertää.",
