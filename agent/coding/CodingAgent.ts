@@ -4,11 +4,22 @@ import { SupervisedToolExecutor } from "../core/SupervisedToolExecutor.js";
 import { OpenAIToolLoop, type ToolLoopResult } from "../providers/OpenAIToolLoop.js";
 import { createDefaultToolRegistry, defaultFunctionToolSpecs } from "../tools/DefaultToolRegistry.js";
 import { RepositoryScanner, type RepositoryMap } from "./RepositoryScanner.js";
+import { CodingRepairCoordinator } from "./CodingRepairCoordinator.js";
+import type { RepairAction, RepairLoopResult, VerificationAction } from "./RepairLoop.js";
 import type { PermissionPolicy } from "../core/PermissionEngine.js";
+
+export interface CodingAgentOptions {
+  model?: string;
+  maxTurns?: number;
+  repairMaxAttempts?: number;
+  verification?: VerificationAction;
+  repair?: RepairAction;
+}
 
 export interface CodingAgentResult {
   repository: RepositoryMap;
   loop: ToolLoopResult;
+  repair?: RepairLoopResult;
 }
 
 const CODING_INSTRUCTIONS = [
@@ -27,11 +38,12 @@ export class CodingAgent {
   private readonly scanner: RepositoryScanner;
   private readonly toolLoop: OpenAIToolLoop;
   private readonly executor: SupervisedToolExecutor;
+  private readonly repairOptions: Pick<CodingAgentOptions, "repairMaxAttempts" | "verification" | "repair">;
 
   constructor(
     private readonly workspace: string,
     policy: PermissionPolicy,
-    options: { model?: string; maxTurns?: number } = {}
+    options: CodingAgentOptions = {}
   ) {
     this.scanner = new RepositoryScanner(workspace);
     const orchestrator = new AgentOrchestrator(policy);
@@ -39,6 +51,11 @@ export class CodingAgent {
     const context: AgentContext = { mode: "coding", workspace, userRequest: "coding task" };
     this.executor = new SupervisedToolExecutor(orchestrator, registry, context);
     this.toolLoop = new OpenAIToolLoop(options);
+    this.repairOptions = {
+      repairMaxAttempts: options.repairMaxAttempts,
+      verification: options.verification,
+      repair: options.repair
+    };
   }
 
   async run(request: string): Promise<CodingAgentResult> {
@@ -50,7 +67,19 @@ export class CodingAgent {
       `User request: ${request}`
     ].join("\n");
     const loop = await this.toolLoop.run(context, defaultFunctionToolSpecs(), this.executor, CODING_INSTRUCTIONS);
-    return { repository, loop };
+
+    // Never start automated repair while the model is paused for human approval.
+    if (loop.pendingApproval || !this.repairOptions.verification || !this.repairOptions.repair) {
+      return { repository, loop };
+    }
+
+    const coordinator = new CodingRepairCoordinator({
+      maxAttempts: this.repairOptions.repairMaxAttempts,
+      verify: this.repairOptions.verification,
+      repair: this.repairOptions.repair
+    });
+    const repair = await coordinator.run();
+    return { repository, loop, repair };
   }
 }
 
