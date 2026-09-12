@@ -1,14 +1,16 @@
 {
   "name": "toni-ai-agent",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "private": true,
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "check": "tsc -p tsconfig.json --noEmit",
     "test": "node --test dist/tests/**/*.test.js",
-    "start": "node dist/app/cli.js",
-    "dev": "node --watch --import tsx app/cli.ts"
+    "start": "node dist/app/interactive-cli.js",
+    "start:plan": "node dist/app/cli.js",
+    "dev": "node --watch --import tsx app/interactive-cli.ts",
+    "dev:plan": "node --import tsx app/cli.ts"
   },
   "engines": { "node": ">=22" },
   "dependencies": { "openai": "^7.9.0", "playwright": "^1.55.0" },
