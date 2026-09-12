@@ -4,12 +4,12 @@ Write-Host "Toni AI Agent - Windows bootstrap"
 
 $node = Get-Command node -ErrorAction SilentlyContinue
 if (-not $node) {
-  throw "Node.js 20+ is required. Install Node.js LTS first, then run this script again."
+  throw "Node.js 22+ is required. Install Node.js LTS first, then run this script again."
 }
 
 $version = node --version
-if ($version -notmatch '^v(2[0-9]|[3-9][0-9])\.') {
-  throw "Node.js 20+ is required. Detected $version"
+if ($version -notmatch '^v(2[2-9]|[3-9][0-9])\.') {
+  throw "Node.js 22+ is required. Detected $version"
 }
 
 if (-not (Test-Path ".env")) {
