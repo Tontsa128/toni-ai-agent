@@ -30,6 +30,12 @@ export interface ToolExecutor {
   execute(context: ToolExecutionContext): Promise<ToolExecutionResult>;
 }
 
+export interface ToolLoopOptions {
+  model?: string;
+  maxTurns?: number;
+  previousResponseId?: string;
+}
+
 /**
  * Closed Responses-API tool loop. The model can propose functions, but the executor
  * is the only component allowed to run them. The executor must call the local
@@ -47,11 +53,18 @@ export class OpenAIToolLoop {
     this.maxTurns = options.maxTurns ?? 8;
   }
 
-  async run(input: string, tools: FunctionToolSpec[], executor: ToolExecutor, instructions?: string): Promise<ToolLoopResult> {
+  async run(
+    input: string,
+    tools: FunctionToolSpec[],
+    executor: ToolExecutor,
+    instructions?: string,
+    previousResponseId?: string
+  ): Promise<ToolLoopResult> {
     let response = await this.client.responses.create({
       model: this.model,
       ...(instructions ? { instructions } : {}),
       input,
+      ...(previousResponseId ? { previous_response_id: previousResponseId } : {}),
       tools: tools.map(({ name, description, parameters }) => ({
         type: "function" as const,
         name,
