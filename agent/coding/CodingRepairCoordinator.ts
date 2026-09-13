@@ -13,45 +13,38 @@ export interface ResumableCodingRepairCoordinatorOptions extends RepairSessionOp
   repair: SessionRepairAction;
 }
 
-/**
- * Binds the generic bounded RepairLoop to the coding workflow.
- * The legacy run() API remains available for non-approval repair callbacks.
- */
 export class CodingRepairCoordinator {
   private readonly loop?: RepairLoop;
+  private readonly loopVerify?: VerificationAction;
+  private readonly loopRepair?: RepairAction;
   private readonly session?: RepairSession;
+  private readonly sessionVerify?: SessionVerificationAction;
+  private readonly sessionRepair?: SessionRepairAction;
 
   constructor(options: CodingRepairCoordinatorOptions | ResumableCodingRepairCoordinatorOptions) {
-    if ("maxAttempts" in options && options.maxAttempts !== undefined) {
-      // The session/loop both enforce the hard three-attempt ceiling.
-    }
-    if ("verify" in options && "repair" in options) {
-      if (options.repair.length >= 3) {
-        this.session = new RepairSession(options);
-      } else {
-        this.loop = new RepairLoop(options);
-      }
+    if (options.repair.length >= 3) {
+      this.session = new RepairSession(options);
+      this.sessionVerify = options.verify;
+      this.sessionRepair = options.repair;
+    } else {
+      this.loop = new RepairLoop(options);
+      this.loopVerify = options.verify;
+      this.loopRepair = options.repair;
     }
   }
 
   async run(): Promise<RepairLoopResult> {
-    if (!this.loop) {
+    if (!this.loop || !this.loopVerify || !this.loopRepair) {
       throw new Error("This coordinator was configured for resumable repair; use start(), approve(), or reject().");
     }
-    return this.loop.run(this.loopVerify!, this.loopRepair!);
-  }
-
-  private get loopVerify(): VerificationAction | undefined {
-    return (this as unknown as { loopVerify?: VerificationAction }).loopVerify;
-  }
-
-  private get loopRepair(): RepairAction | undefined {
-    return (this as unknown as { loopRepair?: RepairAction }).loopRepair;
+    return this.loop.run(this.loopVerify, this.loopRepair);
   }
 
   async start(): Promise<RepairSessionSnapshot> {
-    if (!this.session) throw new Error("This coordinator is not configured for resumable repair");
-    return this.session.start(this.sessionVerify!, this.sessionRepair!);
+    if (!this.session || !this.sessionVerify || !this.sessionRepair) {
+      throw new Error("This coordinator is not configured for resumable repair");
+    }
+    return this.session.start(this.sessionVerify, this.sessionRepair);
   }
 
   async approve(actionId: string): Promise<RepairSessionSnapshot> {
@@ -67,14 +60,6 @@ export class CodingRepairCoordinator {
   snapshot(): RepairSessionSnapshot {
     if (!this.session) throw new Error("This coordinator is not configured for resumable repair");
     return this.session.snapshot();
-  }
-
-  private get sessionVerify(): SessionVerificationAction | undefined {
-    return (this as unknown as { sessionVerify?: SessionVerificationAction }).sessionVerify;
-  }
-
-  private get sessionRepair(): SessionRepairAction | undefined {
-    return (this as unknown as { sessionRepair?: SessionRepairAction }).sessionRepair;
   }
 }
 
