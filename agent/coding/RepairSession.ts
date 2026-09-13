@@ -50,12 +50,12 @@ export class RepairSession {
   private readonly maxAttempts: number;
   private state: RepairSessionState = "verifying";
   private attempt = 1;
-  private verification?: VerificationResult;
-  private repairPlan?: RepairPlan;
-  private approval?: RepairApprovalRequest;
-  private reason?: string;
-  private repairAction?: SessionRepairAction;
-  private verifyAction?: SessionVerificationAction;
+  private verification: VerificationResult | undefined;
+  private repairPlan: RepairPlan | undefined;
+  private approval: RepairApprovalRequest | undefined;
+  private reason: string | undefined;
+  private repairAction: SessionRepairAction | undefined;
+  private verifyAction: SessionVerificationAction | undefined;
   private repairInFlight = false;
 
   constructor(options: RepairSessionOptions = {}) {
