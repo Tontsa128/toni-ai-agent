@@ -175,6 +175,7 @@ export class RepairSession {
     this.state = "failed";
     this.reason = reason;
     this.approval = undefined;
+    this.repairPlan = undefined;
     return this.snapshot();
   }
 }
