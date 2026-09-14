@@ -13,10 +13,12 @@ import {
   type SessionVerificationAction
 } from "./RepairSession.js";
 import { RepairSessionStore } from "./RepairSessionStore.js";
+import { AuditLog } from "../audit/AuditLog.js";
 import type { RepairPlan } from "../debug/SelfDebugger.js";
 import type { VerificationResult } from "./VerificationEngine.js";
 
 export interface RepairSessionPersistenceOptions { filePath: string; sessionId: string; }
+export interface RepairAuditOptions { filePath: string; }
 export interface CodingRepairCoordinatorOptions extends RepairLoopOptions {
   mode?: "legacy";
   verify: VerificationAction;
@@ -27,6 +29,7 @@ export interface ResumableCodingRepairCoordinatorOptions extends RepairSessionOp
   verify: SessionVerificationAction;
   repair: SessionRepairAction;
   persistence?: RepairSessionPersistenceOptions;
+  audit?: RepairAuditOptions;
 }
 
 export class CodingRepairCoordinator {
@@ -38,11 +41,13 @@ export class CodingRepairCoordinator {
   private readonly sessionRepair: SessionRepairAction | undefined;
   private readonly sessionStore: RepairSessionStore | undefined;
   private readonly sessionId: string | undefined;
+  private readonly audit: AuditLog | undefined;
 
   constructor(options: CodingRepairCoordinatorOptions | ResumableCodingRepairCoordinatorOptions) {
     if (options.mode === "resumable") {
       this.sessionStore = options.persistence ? new RepairSessionStore(options.persistence.filePath) : undefined;
       this.sessionId = options.persistence?.sessionId;
+      this.audit = options.audit ? new AuditLog(options.audit) : undefined;
       const restored = this.sessionStore && this.sessionId ? this.sessionStore.load(this.sessionId) : undefined;
       const sessionOptions: RepairSessionOptions = {};
       if (options.maxAttempts !== undefined) sessionOptions.maxAttempts = options.maxAttempts;
@@ -64,22 +69,34 @@ export class CodingRepairCoordinator {
 
   async start(): Promise<RepairSessionSnapshot> {
     if (!this.session || !this.sessionVerify || !this.sessionRepair) throw new Error("This coordinator is not configured for resumable repair");
+    this.audit?.append({ type: "repair_started", sessionId: this.auditSessionId(), attempt: this.session.snapshot().attempt });
     const result = await this.session.start(this.sessionVerify, this.sessionRepair);
     this.persist(result);
+    this.auditSnapshot(result);
     return result;
   }
 
   async approve(actionId: string): Promise<RepairSessionSnapshot> {
     if (!this.session) throw new Error("This coordinator is not configured for resumable repair");
+    const before = this.session.snapshot();
     const result = await this.session.approve(actionId);
     this.persist(result);
+    if (before.approval?.actionId === actionId) this.audit?.append({
+      type: "repair_approved", sessionId: this.auditSessionId(), attempt: before.attempt, actionId
+    });
+    this.auditSnapshot(result);
     return result;
   }
 
   reject(actionId: string): RepairSessionSnapshot {
     if (!this.session) throw new Error("This coordinator is not configured for resumable repair");
+    const before = this.session.snapshot();
     const result = this.session.reject(actionId);
     this.persist(result);
+    if (before.approval?.actionId === actionId) this.audit?.append({
+      type: "repair_rejected", sessionId: this.auditSessionId(), attempt: before.attempt, actionId
+    });
+    this.auditSnapshot(result);
     return result;
   }
 
@@ -92,7 +109,23 @@ export class CodingRepairCoordinator {
     if (!this.sessionStore || !this.sessionId) return;
     this.sessionStore.save(this.sessionId, snapshot);
   }
+
+  private auditSessionId(): string { return this.sessionId ?? "ephemeral"; }
+
+  private auditSnapshot(snapshot: RepairSessionSnapshot): void {
+    if (!this.audit) return;
+    if (snapshot.state === "waiting_approval" && snapshot.approval) this.audit.append({
+      type: "repair_approval_requested", sessionId: this.auditSessionId(), attempt: snapshot.attempt,
+      actionId: snapshot.approval.actionId, summary: snapshot.approval.description
+    });
+    if (snapshot.state === "succeeded") this.audit.append({
+      type: "repair_succeeded", sessionId: this.auditSessionId(), attempt: snapshot.attempt
+    });
+    if (snapshot.state === "failed") this.audit.append({
+      type: "repair_failed", sessionId: this.auditSessionId(), attempt: snapshot.attempt, reason: snapshot.reason
+    });
+  }
 }
 
 export type { RepairPlan, VerificationResult };
-export { RepairSessionStore };
+export { RepairSessionStore, AuditLog };
