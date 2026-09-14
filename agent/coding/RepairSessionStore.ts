@@ -37,8 +37,9 @@ export class RepairSessionStore {
     try {
       const raw = JSON.parse(readFileSync(this.filePath, "utf8")) as Partial<PersistedRepairSession>;
       if (raw.schemaVersion !== SCHEMA_VERSION || raw.sessionId !== sessionId) return undefined;
-      if (!this.isState(raw.state) || !Number.isInteger(raw.attempt) || raw.attempt < 1) return undefined;
-      const snapshot: RepairSessionSnapshot = { state: raw.state, attempt: raw.attempt };
+      const attempt = raw.attempt;
+      if (!this.isState(raw.state) || !Number.isInteger(attempt) || attempt < 1) return undefined;
+      const snapshot: RepairSessionSnapshot = { state: raw.state, attempt };
       if (raw.verification) snapshot.verification = raw.verification as VerificationResult;
       if (raw.repairPlan) snapshot.repairPlan = raw.repairPlan;
       if (raw.approval) snapshot.approval = raw.approval;
