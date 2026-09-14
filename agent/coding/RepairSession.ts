@@ -52,10 +52,15 @@ export class RepairSession {
     return snapshot;
   }
 
-  async start(verify: SessionVerificationAction, repair: SessionRepairAction): Promise<RepairSessionSnapshot> {
-    if (this.startPromise) return this.startPromise;
+  /** Attach runtime callbacks after construction, including after restoring durable state. */
+  bindActions(verify: SessionVerificationAction, repair: SessionRepairAction): void {
     this.verifyAction = verify;
     this.repairAction = repair;
+  }
+
+  async start(verify: SessionVerificationAction, repair: SessionRepairAction): Promise<RepairSessionSnapshot> {
+    if (this.startPromise) return this.startPromise;
+    this.bindActions(verify, repair);
     if (this.started) return this.snapshot();
     this.started = true;
     if (this.state !== "verifying") return this.snapshot();
