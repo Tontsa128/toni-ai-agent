@@ -18,13 +18,7 @@ interface PersistedRepairSession {
   approval?: RepairSessionSnapshot["approval"];
   reason?: string;
 }
-
-interface SanitizedVerificationResult {
-  ok: boolean;
-  steps: SanitizedVerificationStepResult[];
-  failedStep?: SanitizedVerificationStepResult;
-}
-
+interface SanitizedVerificationResult { ok: boolean; steps: SanitizedVerificationStepResult[]; failedStep?: SanitizedVerificationStepResult; }
 interface SanitizedVerificationStepResult {
   name: VerificationStepResult["name"];
   command: string;
@@ -34,35 +28,23 @@ interface SanitizedVerificationStepResult {
   reason?: string;
 }
 
-/**
- * Small, file-backed persistence boundary for resumable repair sessions.
- *
- * Only workflow state is persisted. stdout/stderr and arbitrary model output are
- * deliberately excluded because they can contain credentials or private data.
- */
+/** File-backed repair state. Raw stdout/stderr and model output are never persisted. */
 export class RepairSessionStore {
   constructor(private readonly filePath: string) {}
 
   load(sessionId: string): RepairSessionSnapshot | undefined {
     if (!existsSync(this.filePath)) return undefined;
-
     try {
       const raw = JSON.parse(readFileSync(this.filePath, "utf8")) as Partial<PersistedRepairSession>;
       if (raw.schemaVersion !== SCHEMA_VERSION || raw.sessionId !== sessionId) return undefined;
       if (!this.isState(raw.state) || !Number.isInteger(raw.attempt) || raw.attempt < 1) return undefined;
-
-      const snapshot: RepairSessionSnapshot = {
-        state: raw.state,
-        attempt: raw.attempt
-      };
+      const snapshot: RepairSessionSnapshot = { state: raw.state, attempt: raw.attempt };
       if (raw.verification) snapshot.verification = raw.verification as VerificationResult;
       if (raw.repairPlan) snapshot.repairPlan = raw.repairPlan;
       if (raw.approval) snapshot.approval = raw.approval;
       if (raw.reason) snapshot.reason = raw.reason;
       return snapshot;
-    } catch {
-      return undefined;
-    }
+    } catch { return undefined; }
   }
 
   save(sessionId: string, snapshot: RepairSessionSnapshot): void {
@@ -95,7 +77,8 @@ export class RepairSessionStore {
   }
 
   clear(): void {
-    try { unlinkSync(this.filePath); } catch (error) {
+    try { unlinkSync(this.filePath); }
+    catch (error) {
       const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
       if (code !== "ENOENT") throw error;
     }
@@ -104,20 +87,13 @@ export class RepairSessionStore {
   private sanitizeVerification(result: VerificationResult): SanitizedVerificationResult {
     const sanitizeStep = (step: VerificationStepResult): SanitizedVerificationStepResult => {
       const output: SanitizedVerificationStepResult = {
-        name: step.name,
-        command: this.safeText(step.command),
-        ok: step.ok,
-        skipped: step.skipped
+        name: step.name, command: this.safeText(step.command), ok: step.ok, skipped: step.skipped
       };
       if (step.exitCode !== undefined) output.exitCode = step.exitCode;
       if (step.reason) output.reason = this.safeText(step.reason);
       return output;
     };
-
-    const output: SanitizedVerificationResult = {
-      ok: result.ok,
-      steps: result.steps.map(sanitizeStep)
-    };
+    const output: SanitizedVerificationResult = { ok: result.ok, steps: result.steps.map(sanitizeStep) };
     if (result.failedStep) output.failedStep = sanitizeStep(result.failedStep);
     return output;
   }
@@ -135,7 +111,7 @@ export class RepairSessionStore {
   private safeText(value: string): string {
     return value
       .replace(/(?:sk|pk)_(?:live|test)_[A-Za-z0-9_-]+/gi, "[REDACTED]")
-      .replace(/(?:api[_-]?key|token|password|secret|authorization)\s*[:=]\s*[^\s,;]+/gi, "$1=[REDACTED]")
+      .replace(/((?:api[_-]?key|token|password|secret|authorization))\s*[:=]\s*[^\s,;]+/gi, "$1=[REDACTED]")
       .replace(/bearer\s+[A-Za-z0-9._-]+/gi, "Bearer [REDACTED]")
       .slice(0, MAX_TEXT);
   }
