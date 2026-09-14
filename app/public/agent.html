@@ -2,58 +2,54 @@
 <html lang="fi">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0b1020">
   <title>Toni AI Agent</title>
   <style>
-    :root { color-scheme: dark; font-family: Inter,system-ui,sans-serif; }
-    body { margin:0; background:#0b1020; color:#eef2ff; min-height:100vh; }
-    .app { max-width:1000px; margin:auto; padding:24px 16px; display:flex; flex-direction:column; min-height:calc(100vh - 48px); box-sizing:border-box; }
-    header { display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom:18px; }
-    h1 { margin:0; font-size:22px; } .status { font-size:12px; opacity:.7; }
-    #chat { flex:1; overflow:auto; padding:8px 0 18px; }
-    .msg { max-width:85%; padding:12px 14px; border-radius:14px; margin:9px 0; white-space:pre-wrap; overflow-wrap:anywhere; }
-    .user { margin-left:auto; background:#243b68; } .agent { background:#171d31; border:1px solid #29314a; }
-    .composer { background:#12182a; border:1px solid #29314a; border-radius:18px; padding:10px; position:sticky; bottom:10px; }
-    textarea { width:100%; min-height:70px; resize:vertical; background:transparent; border:0; outline:0; color:inherit; font:inherit; box-sizing:border-box; padding:8px; }
-    .bar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-    button, label.button { border:1px solid #3b4663; background:#1c253b; color:inherit; border-radius:10px; padding:9px 13px; cursor:pointer; font:inherit; }
-    button:hover,label.button:hover { background:#27324c; } button.primary { background:#315c9c; border-color:#4b79bb; }
-    button.recording { background:#8b3030; }
-    input[type=file] { display:none; }
-    #files { display:flex; gap:6px; flex-wrap:wrap; padding:5px 6px; }
-    .file { font-size:12px; background:#202a42; border-radius:999px; padding:5px 9px; }
-    .hint { font-size:11px; opacity:.55; margin-top:7px; }
+    :root{color-scheme:dark;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}*{box-sizing:border-box}body{margin:0;background:#0b1020;color:#eef2ff;min-height:100vh}.app{max-width:1050px;margin:auto;padding:18px 14px;display:flex;flex-direction:column;min-height:100vh}header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}h1{margin:0;font-size:21px}.status{font-size:12px;opacity:.65;margin-top:3px}.status.ok{opacity:.9}.status.busy{opacity:.9}.chat{flex:1;overflow:auto;padding:8px 0 16px;scroll-behavior:smooth}.msg{max-width:88%;padding:12px 14px;border-radius:15px;margin:9px 0;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.45}.user{margin-left:auto;background:#243b68}.agent{background:#171d31;border:1px solid #29314a}.attachment{font-size:12px;opacity:.8;margin-top:7px}.composer{background:#12182a;border:1px solid #29314a;border-radius:18px;padding:10px;position:sticky;bottom:8px;box-shadow:0 10px 35px #0005}textarea{width:100%;min-height:76px;max-height:260px;resize:vertical;background:transparent;border:0;outline:0;color:inherit;font:inherit;padding:8px;line-height:1.45}.bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}button,label.button{border:1px solid #3b4663;background:#1c253b;color:inherit;border-radius:10px;padding:9px 13px;cursor:pointer;font:inherit}button:hover,label.button:hover{background:#27324c}button:disabled{opacity:.45;cursor:not-allowed}button.primary{background:#315c9c;border-color:#4b79bb}button.recording{background:#8b3030;border-color:#b34a4a}input[type=file]{display:none}.drop{border:1px dashed #3b4663;border-radius:12px;padding:7px 9px;margin-bottom:7px;font-size:11px;opacity:.65}.drop.active{opacity:1;border-color:#6e8ec9;background:#1a2742}.files{display:flex;gap:6px;flex-wrap:wrap;padding:3px 4px 7px}.file{display:flex;align-items:center;gap:6px;font-size:12px;background:#202a42;border-radius:999px;padding:5px 9px;cursor:pointer}.file:hover{background:#2b3753}.approval{display:none;background:#2b2115;border:1px solid #765322;border-radius:14px;padding:12px;margin:0 0 10px}.approval.show{display:block}.approval strong{display:block;margin-bottom:5px}.approval-id{font-family:ui-monospace,monospace;font-size:11px;word-break:break-all;opacity:.75;margin:7px 0}.approval-actions{display:flex;gap:8px}.approve{background:#315c3b;border-color:#4f8c60}.reject{background:#6d3030;border-color:#925050}.hint{font-size:11px;opacity:.5;margin-top:7px}@media(max-width:600px){.app{padding:12px 9px}.msg{max-width:94%}.composer{bottom:4px}button,label.button{padding:9px 11px}}
   </style>
 </head>
 <body>
 <main class="app">
-  <header><div><h1>🤖 Toni AI Agent</h1><div class="status" id="status">Paikallinen agentti</div></div><button id="clear">Tyhjennä</button></header>
-  <section id="chat" aria-live="polite"></section>
-  <section class="composer">
-    <textarea id="message" placeholder="Kirjoita käsky… esim. 'Tutki tämä kuva ja kerro mikä siinä on'" autofocus></textarea>
-    <div id="files"></div>
+  <header><div><h1>🤖 Toni AI Agent</h1><div class="status" id="status">Paikallinen agentti käynnissä</div></div><button id="clear">Tyhjennä</button></header>
+  <section id="approval" class="approval" aria-live="assertive"><strong>⚠️ Toni tarvitsee hyväksynnän</strong><div id="approvalText">Agentti odottaa hyväksyntää.</div><div class="approval-id" id="approvalId"></div><div class="approval-actions"><button class="approve" id="approve">✓ Hyväksy</button><button class="reject" id="reject">✕ Hylkää</button></div></section>
+  <section id="chat" class="chat" aria-live="polite"></section>
+  <section class="composer" id="composer">
+    <div id="drop" class="drop">Voit myös vetää tiedoston tähän, liittää kuvan leikepöydältä tai käyttää 📎-painiketta.</div>
+    <textarea id="message" placeholder="Kirjoita käsky… esim. ‘Tutki tämä kuva’ tai ‘Tutki projektin virheet ja kerro mitä korjaisit’" autofocus></textarea>
+    <div id="files" class="files"></div>
     <div class="bar">
-      <label class="button" for="fileInput">📎 Liitä tiedosto</label>
+      <label class="button" for="fileInput">📎 Liitä</label>
       <input id="fileInput" type="file" multiple accept="image/*,.pdf,.txt,.md,.csv,.json,.js,.ts,.tsx,.jsx,.css,.html,.xml,.yml,.yaml">
       <button id="mic" title="Sanele käsky">🎙️ Puhe</button>
       <button id="send" class="primary">Lähetä</button>
     </div>
-    <div class="hint">Kuvat ja tiedostot lähetetään vain tämän paikallisen käyttöliittymän kautta agentille. Puhe muutetaan selaimessa tekstiksi, jos selain tukee puheentunnistusta.</div>
+    <div class="hint">Kuvat ja tiedostot käsitellään tämän paikallisen agentin kautta. Puheentunnistus käyttää suomea (fi-FI), jos selain tukee sitä.</div>
   </section>
 </main>
 <script>
-const chat=document.getElementById('chat'), message=document.getElementById('message'), fileInput=document.getElementById('fileInput'), filesEl=document.getElementById('files'), send=document.getElementById('send'), mic=document.getElementById('mic'), statusEl=document.getElementById('status');
-let files=[];
-function add(role,text){const el=document.createElement('div');el.className='msg '+role;el.textContent=text;chat.appendChild(el);chat.scrollTop=chat.scrollHeight;}
-function renderFiles(){filesEl.replaceChildren(...files.map((f,i)=>{const e=document.createElement('span');e.className='file';e.textContent='📎 '+f.name+' ×';e.onclick=()=>{files.splice(i,1);renderFiles()};return e;}));}
-fileInput.addEventListener('change',()=>{files.push(...Array.from(fileInput.files||[]));if(files.length>8)files=files.slice(0,8);fileInput.value='';renderFiles();});
-async function submit(){const text=message.value.trim();if(!text&&!files.length)return;send.disabled=true;add('user',(text||'Analysoi liitteet.')+(files.length?'\n📎 '+files.map(f=>f.name).join(', '):''));const form=new FormData();form.append('message',text);files.forEach(f=>form.append('files',f,f.name));message.value='';files=[];renderFiles();statusEl.textContent='Agentti käsittelee…';try{const r=await fetch('/api/ask',{method:'POST',body:form});const data=await r.json();if(!r.ok)throw new Error(data.error||'Pyyntö epäonnistui');add('agent',data.text||JSON.stringify(data,null,2));statusEl.textContent=data.pendingApproval?'Odottaa hyväksyntää':'Valmis';}catch(e){add('agent','Virhe: '+e.message);statusEl.textContent='Virhe';}finally{send.disabled=false;message.focus();}}
-send.onclick=submit;message.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();submit();}});
-document.getElementById('clear').onclick=()=>{chat.replaceChildren();message.focus()};
+const chat=document.getElementById('chat'),message=document.getElementById('message'),fileInput=document.getElementById('fileInput'),filesEl=document.getElementById('files'),send=document.getElementById('send'),mic=document.getElementById('mic'),statusEl=document.getElementById('status'),drop=document.getElementById('drop'),approval=document.getElementById('approval'),approvalText=document.getElementById('approvalText'),approvalId=document.getElementById('approvalId'),approve=document.getElementById('approve'),reject=document.getElementById('reject');
+let files=[];let currentApproval='';let recognition=null;let listening=false;let speechBase='';
+function add(role,text,attachments=[]){const el=document.createElement('div');el.className='msg '+role;el.textContent=text;if(attachments.length){const a=document.createElement('div');a.className='attachment';a.textContent='📎 '+attachments.join(', ');el.appendChild(a)}chat.appendChild(el);chat.scrollTop=chat.scrollHeight}
+function renderFiles(){filesEl.replaceChildren(...files.map((f,i)=>{const e=document.createElement('span');e.className='file';e.title='Poista liite';e.textContent='📎 '+f.name+' ×';e.onclick=()=>{files.splice(i,1);renderFiles()};return e}))}
+function addFiles(incoming){for(const f of incoming){if(files.length>=8)break;if(f.size>20*1024*1024){add('agent','Liite hylättiin: '+f.name+' on yli 20 MB.');continue}files.push(f)}renderFiles()}
+fileInput.addEventListener('change',()=>{addFiles(Array.from(fileInput.files||[]));fileInput.value=''})
+for(const event of ['dragenter','dragover'])drop.addEventListener(event,e=>{e.preventDefault();drop.classList.add('active')});for(const event of ['dragleave','drop'])drop.addEventListener(event,e=>{e.preventDefault();drop.classList.remove('active')});drop.addEventListener('drop',e=>addFiles(Array.from(e.dataTransfer.files||[])));
+document.addEventListener('paste',e=>{const pasted=Array.from(e.clipboardData?.items||[]).filter(i=>i.kind==='file').map(i=>i.getAsFile()).filter(Boolean);if(pasted.length)addFiles(pasted)})
+async function submit(){const text=message.value.trim();if(!text&&!files.length)return;send.disabled=true;const names=files.map(f=>f.name);add('user',text||'Analysoi liitteet.',names);const form=new FormData();form.append('message',text);files.forEach(f=>form.append('files',f,f.name));message.value='';files=[];renderFiles();setStatus('Agentti käsittelee…',true);try{const r=await fetch('/api/ask',{method:'POST',body:form});const data=await r.json();if(!r.ok)throw new Error(data.error||'Pyyntö epäonnistui');if(data.text)add('agent',data.text);updateState(data);if(data.pendingApproval)showApproval(data.pendingApproval)}catch(e){add('agent','Virhe: '+e.message);setStatus('Virhe',false)}finally{send.disabled=false;message.focus();}}
+send.onclick=submit;message.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();submit()}})
+document.getElementById('clear').onclick=()=>{chat.replaceChildren();message.focus()}
+function setStatus(text,busy=false){statusEl.textContent=text;statusEl.className='status '+(busy?'busy':'ok')}
+function showApproval(p){currentApproval=p.actionId;approvalText.textContent=p.description||'Agentti pyytää hyväksyntää.';approvalId.textContent=p.actionId;approval.classList.add('show');setStatus('Odottaa sinun hyväksyntääsi',false)}
+function hideApproval(){currentApproval='';approval.classList.remove('show')}
+async function approvalCall(path){if(!currentApproval)return;approve.disabled=true;reject.disabled=true;try{const r=await fetch(path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({actionId:currentApproval})});const data=await r.json();if(!r.ok)throw new Error(data.error||'Hyväksyntä epäonnistui');if(data.text)add('agent',data.text);if(data.state)updateState(data.state);if(data.state?.pendingRepairApproval)showApproval(data.state.pendingRepairApproval);else if(!data.state?.pendingApprovals)hideApproval()}catch(e){add('agent','Virhe: '+e.message)}finally{approve.disabled=false;reject.disabled=false}}
+approve.onclick=()=>approvalCall('/api/approve');reject.onclick=()=>approvalCall('/api/reject');
+function updateState(s){if(s.pendingRepairApproval)showApproval(s.pendingRepairApproval);else if(s.pendingApprovals===0)hideApproval();if(s.model)setStatus(`Malli: ${s.model} · Pyyntöjä: ${s.requestCount}`,false)}
+async function refresh(){try{const r=await fetch('/api/status',{cache:'no-store'});const s=await r.json();updateState(s)}catch{setStatus('Agentin yhteys ei vastaa',false)}}
+setInterval(refresh,2500);refresh();
 const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
 if(!SpeechRecognition){mic.disabled=true;mic.title='Tämä selain ei tue selaimen puheentunnistusta';}
-else{const recognition=new SpeechRecognition();recognition.lang='fi-FI';recognition.continuous=false;recognition.interimResults=true;recognition.onstart=()=>{mic.classList.add('recording');mic.textContent='⏹️ Kuuntelen…'};recognition.onend=()=>{mic.classList.remove('recording');mic.textContent='🎙️ Puhe'};recognition.onerror=e=>{add('agent','Puheentunnistus: '+e.error)};recognition.onresult=e=>{let finalText='';for(let i=e.resultIndex;i<e.results.length;i++)finalText+=e.results[i][0].transcript;message.value=finalText;};mic.onclick=()=>{if(mic.classList.contains('recording'))recognition.stop();else recognition.start();};}
-fetch('/api/status').then(r=>r.json()).then(s=>{statusEl.textContent=`Malli: ${s.model} · Workspace: ${s.workspace}`}).catch(()=>{});
+else{recognition=new SpeechRecognition();recognition.lang='fi-FI';recognition.continuous=true;recognition.interimResults=true;recognition.onstart=()=>{listening=true;speechBase=message.value.trim();mic.classList.add('recording');mic.textContent='⏹️ Kuuntelen…';setStatus('Kuuntelen suomenkielistä käskyä…',true)};recognition.onend=()=>{listening=false;mic.classList.remove('recording');mic.textContent='🎙️ Puhe';if(!currentApproval)setStatus('Valmis',false)};recognition.onerror=e=>{if(e.error!=='aborted')add('agent','Puheentunnistus: '+e.error)};recognition.onresult=e=>{let transcript='';for(let i=e.resultIndex;i<e.results.length;i++)transcript+=e.results[i][0].transcript;if(transcript)message.value=(speechBase? speechBase+' ':'')+transcript;};mic.onclick=()=>{if(listening)recognition.stop();else recognition.start()}}
 </script>
 </body>
 </html>
