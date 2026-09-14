@@ -133,10 +133,7 @@ export class InteractiveSession {
       case "approve": return { kind: "command", text: command.actionId ? `Hyväksyntä suoritetaan komennolla /approve ${command.actionId}.` : "Käyttö: /approve <actionId>" };
       case "reject": {
         if (!command.actionId) return { kind: "command", text: "Käyttö: /reject <actionId>" };
-        this.executor.reject(command.actionId);
-        if (this.pendingToolApproval?.actionId === command.actionId) this.pendingToolApproval = undefined;
-        if (this.codingWorkflow) this.codingWorkflow.rejectRepair(command.actionId);
-        return { kind: "command", text: `Toiminto hylätty: ${command.actionId}` };
+        return { kind: "command", text: this.reject(command.actionId) };
       }
       case "model": {
         if (!command.value) return { kind: "command", text: `Nykyinen malli: ${this.model}` };
@@ -167,6 +164,21 @@ export class InteractiveSession {
       return `Korjaus hyväksyntä käsitelty: ${result.state}${result.reason ? ` — ${result.reason}` : ""}`;
     }
     throw new Error(`No resumable approval found for action ${actionId}`);
+  }
+
+  reject(actionId: string): string {
+    const toolPending = this.executor.continuations.listActionIds().includes(actionId);
+    if (toolPending) {
+      this.executor.reject(actionId);
+      if (this.pendingToolApproval?.actionId === actionId) this.pendingToolApproval = undefined;
+      return `Toiminto hylätty: ${actionId}`;
+    }
+    const repair = this.codingWorkflow?.getRepairSnapshot();
+    if (repair?.state === "waiting_approval") {
+      const result = this.codingWorkflow!.rejectRepair(actionId);
+      return result.state === "rejected" ? `Korjaus hylätty: ${actionId}` : `Korjaus odottaa edelleen hyväksyntää: ${result.approval?.actionId ?? actionId}`;
+    }
+    throw new Error(`No pending approval found for action ${actionId}`);
   }
 
   async ask(input: AgentInput): Promise<ToolLoopResult> {
