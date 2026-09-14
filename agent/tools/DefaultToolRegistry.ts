@@ -4,6 +4,7 @@ import { readTextFile } from "../../tools/filesystem/readTextFile.js";
 import { writeTextFile } from "../../tools/filesystem/writeTextFile.js";
 import { GitReadTool } from "../../tools/GitReadTool.js";
 import { TerminalExecutor } from "../sandbox/TerminalExecutor.js";
+import { createWordDocument } from "./WordDocumentTool.js";
 import type { SandboxPolicy } from "../sandbox/types.js";
 
 const readTextFileTool: ToolDefinition = {
@@ -28,6 +29,24 @@ const writeTextFileTool = (workspace: string): ToolDefinition => ({
     if (typeof value.relativePath !== "string") throw new Error("relativePath is required");
     if (typeof value.content !== "string") throw new Error("content is required");
     return writeTextFile(workspace, value.relativePath, value.content);
+  }
+});
+
+const writeWordDocumentTool = (workspace: string): ToolDefinition => ({
+  name: "write_word_document",
+  description: "Create a real Microsoft Word .docx file inside the workspace. Writing the document changes project state and requires human approval.",
+  risk: "yellow",
+  async execute(input) {
+    if (typeof input !== "object" || input === null) throw new Error("object input is required");
+    const value = input as { relativePath?: unknown; title?: unknown; content?: unknown };
+    if (typeof value.relativePath !== "string") throw new Error("relativePath is required");
+    if (value.title !== undefined && typeof value.title !== "string") throw new Error("title must be a string");
+    if (typeof value.content !== "string") throw new Error("content is required");
+    return createWordDocument(workspace, {
+      relativePath: value.relativePath,
+      title: value.title,
+      content: value.content
+    });
   }
 });
 
@@ -65,6 +84,7 @@ export function createDefaultToolRegistry(workspace: string): ToolRegistry {
     }
   });
   registry.register(writeTextFileTool(workspace));
+  registry.register(writeWordDocumentTool(workspace));
   registry.register(runCommandTool(workspace));
 
   const git = new GitReadTool();
@@ -111,6 +131,21 @@ export function defaultFunctionToolSpecs(): Array<{
         properties: {
           relativePath: { type: "string", description: "Workspace-relative file path" },
           content: { type: "string", description: "Complete replacement file content" }
+        },
+        required: ["relativePath", "content"],
+        additionalProperties: false
+      }
+    },
+    {
+      name: "write_word_document",
+      description: "Create a real Microsoft Word .docx file inside the workspace. Human approval is required.",
+      risk: "yellow",
+      parameters: {
+        type: "object",
+        properties: {
+          relativePath: { type: "string", description: "Workspace-relative .docx output path" },
+          title: { type: "string", description: "Optional Word document title" },
+          content: { type: "string", description: "Document text; use line breaks for separate paragraphs" }
         },
         required: ["relativePath", "content"],
         additionalProperties: false
