@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="fi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Toni AI Agent</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter,system-ui,sans-serif; }
+    body { margin:0; background:#0b1020; color:#eef2ff; min-height:100vh; }
+    .app { max-width:1000px; margin:auto; padding:24px 16px; display:flex; flex-direction:column; min-height:calc(100vh - 48px); box-sizing:border-box; }
+    header { display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom:18px; }
+    h1 { margin:0; font-size:22px; } .status { font-size:12px; opacity:.7; }
+    #chat { flex:1; overflow:auto; padding:8px 0 18px; }
+    .msg { max-width:85%; padding:12px 14px; border-radius:14px; margin:9px 0; white-space:pre-wrap; overflow-wrap:anywhere; }
+    .user { margin-left:auto; background:#243b68; } .agent { background:#171d31; border:1px solid #29314a; }
+    .composer { background:#12182a; border:1px solid #29314a; border-radius:18px; padding:10px; position:sticky; bottom:10px; }
+    textarea { width:100%; min-height:70px; resize:vertical; background:transparent; border:0; outline:0; color:inherit; font:inherit; box-sizing:border-box; padding:8px; }
+    .bar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+    button, label.button { border:1px solid #3b4663; background:#1c253b; color:inherit; border-radius:10px; padding:9px 13px; cursor:pointer; font:inherit; }
+    button:hover,label.button:hover { background:#27324c; } button.primary { background:#315c9c; border-color:#4b79bb; }
+    button.recording { background:#8b3030; }
+    input[type=file] { display:none; }
+    #files { display:flex; gap:6px; flex-wrap:wrap; padding:5px 6px; }
+    .file { font-size:12px; background:#202a42; border-radius:999px; padding:5px 9px; }
+    .hint { font-size:11px; opacity:.55; margin-top:7px; }
+  </style>
+</head>
+<body>
+<main class="app">
+  <header><div><h1>🤖 Toni AI Agent</h1><div class="status" id="status">Paikallinen agentti</div></div><button id="clear">Tyhjennä</button></header>
+  <section id="chat" aria-live="polite"></section>
+  <section class="composer">
+    <textarea id="message" placeholder="Kirjoita käsky… esim. 'Tutki tämä kuva ja kerro mikä siinä on'" autofocus></textarea>
+    <div id="files"></div>
+    <div class="bar">
+      <label class="button" for="fileInput">📎 Liitä tiedosto</label>
+      <input id="fileInput" type="file" multiple accept="image/*,.pdf,.txt,.md,.csv,.json,.js,.ts,.tsx,.jsx,.css,.html,.xml,.yml,.yaml">
+      <button id="mic" title="Sanele käsky">🎙️ Puhe</button>
+      <button id="send" class="primary">Lähetä</button>
+    </div>
+    <div class="hint">Kuvat ja tiedostot lähetetään vain tämän paikallisen käyttöliittymän kautta agentille. Puhe muutetaan selaimessa tekstiksi, jos selain tukee puheentunnistusta.</div>
+  </section>
+</main>
+<script>
+const chat=document.getElementById('chat'), message=document.getElementById('message'), fileInput=document.getElementById('fileInput'), filesEl=document.getElementById('files'), send=document.getElementById('send'), mic=document.getElementById('mic'), statusEl=document.getElementById('status');
+let files=[];
+function add(role,text){const el=document.createElement('div');el.className='msg '+role;el.textContent=text;chat.appendChild(el);chat.scrollTop=chat.scrollHeight;}
+function renderFiles(){filesEl.replaceChildren(...files.map((f,i)=>{const e=document.createElement('span');e.className='file';e.textContent='📎 '+f.name+' ×';e.onclick=()=>{files.splice(i,1);renderFiles()};return e;}));}
+fileInput.addEventListener('change',()=>{files.push(...Array.from(fileInput.files||[]));if(files.length>8)files=files.slice(0,8);fileInput.value='';renderFiles();});
+async function submit(){const text=message.value.trim();if(!text&&!files.length)return;send.disabled=true;add('user',(text||'Analysoi liitteet.')+(files.length?'\n📎 '+files.map(f=>f.name).join(', '):''));const form=new FormData();form.append('message',text);files.forEach(f=>form.append('files',f,f.name));message.value='';files=[];renderFiles();statusEl.textContent='Agentti käsittelee…';try{const r=await fetch('/api/ask',{method:'POST',body:form});const data=await r.json();if(!r.ok)throw new Error(data.error||'Pyyntö epäonnistui');add('agent',data.text||JSON.stringify(data,null,2));statusEl.textContent=data.pendingApproval?'Odottaa hyväksyntää':'Valmis';}catch(e){add('agent','Virhe: '+e.message);statusEl.textContent='Virhe';}finally{send.disabled=false;message.focus();}}
+send.onclick=submit;message.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();submit();}});
+document.getElementById('clear').onclick=()=>{chat.replaceChildren();message.focus()};
+const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+if(!SpeechRecognition){mic.disabled=true;mic.title='Tämä selain ei tue selaimen puheentunnistusta';}
+else{const recognition=new SpeechRecognition();recognition.lang='fi-FI';recognition.continuous=false;recognition.interimResults=true;recognition.onstart=()=>{mic.classList.add('recording');mic.textContent='⏹️ Kuuntelen…'};recognition.onend=()=>{mic.classList.remove('recording');mic.textContent='🎙️ Puhe'};recognition.onerror=e=>{add('agent','Puheentunnistus: '+e.error)};recognition.onresult=e=>{let finalText='';for(let i=e.resultIndex;i<e.results.length;i++)finalText+=e.results[i][0].transcript;message.value=finalText;};mic.onclick=()=>{if(mic.classList.contains('recording'))recognition.stop();else recognition.start();};}
+fetch('/api/status').then(r=>r.json()).then(s=>{statusEl.textContent=`Malli: ${s.model} · Workspace: ${s.workspace}`}).catch(()=>{});
+</script>
+</body>
+</html>
