@@ -58,6 +58,7 @@ export class RepairSession {
   private verifyAction: SessionVerificationAction | undefined;
   private repairInFlight = false;
   private started = false;
+  private startPromise: Promise<RepairSessionSnapshot> | undefined;
 
   constructor(options: RepairSessionOptions = {}) {
     this.maxAttempts = Math.max(1, Math.min(options.maxAttempts ?? 3, 3));
@@ -79,17 +80,14 @@ export class RepairSession {
     verify: SessionVerificationAction,
     repair: SessionRepairAction
   ): Promise<RepairSessionSnapshot> {
+    if (this.startPromise) return this.startPromise;
     if (this.started) return this.snapshot();
+
     this.started = true;
     this.verifyAction = verify;
     this.repairAction = repair;
-
-    try {
-      await this.verifyCurrent();
-    } catch (error) {
-      this.fail(error instanceof Error ? error.message : String(error));
-    }
-    return this.snapshot();
+    this.startPromise = this.runStart();
+    return this.startPromise;
   }
 
   async approve(actionId: string): Promise<RepairSessionSnapshot> {
@@ -121,6 +119,15 @@ export class RepairSession {
       this.state = "rejected";
       this.reason = "Repair approval rejected";
       this.approval = undefined;
+    }
+    return this.snapshot();
+  }
+
+  private async runStart(): Promise<RepairSessionSnapshot> {
+    try {
+      await this.verifyCurrent();
+    } catch (error) {
+      this.fail(error instanceof Error ? error.message : String(error));
     }
     return this.snapshot();
   }
