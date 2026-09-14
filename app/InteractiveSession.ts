@@ -5,6 +5,7 @@ import { createDefaultToolRegistry, defaultFunctionToolSpecs } from "../agent/to
 import type { PermissionPolicy } from "../agent/core/PermissionEngine.js";
 import type { ResumableCodingRepairCoordinatorOptions, RepairSessionPersistenceOptions, RepairAuditOptions } from "../agent/coding/CodingRepairCoordinator.js";
 import { CodingWorkflow } from "./CodingWorkflow.js";
+import type { AgentInput } from "./AgentInput.js";
 
 export type SessionCommand =
   | { type: "help" } | { type: "reset" } | { type: "status" }
@@ -33,9 +34,11 @@ export interface SessionReply { kind: "command" | "model" | "tool"; text: string
 const FALLBACK_POLICY: PermissionPolicy = {
   filesystem: { read: "allow", write: "workspace", delete: "approval" },
   terminal: { safe_commands: "allow", unknown_commands: "approval", destructive_commands: "approval" },
-  git: { read: "allow", commit: "approval", push: "approval" },
-  browser: { read: "approval", write: "approval", submit: "approval" },
-  system: { settings: "approval", administrator: "never_auto" },
+  git: { read: "allow", commit: "approval", push: "approval", reset: "approval" },
+  github: { read: "allow", write: "approval", merge: "approval", delete: "never_auto" },
+  browser: { read: "approval", write: "approval", submit: "approval", download: "approval" },
+  computer: { read: "approval", click: "approval", type: "approval", system: "never_auto" },
+  system: { settings: "approval", administrator: "never_auto", shutdown: "never_auto" },
   school: { read_assignments: "allow", analyse_assignments: "allow", draft_answers: "allow", write_to_school_portal: "approval", submit_assignment: "approval", send_messages: "approval" }
 };
 
@@ -166,7 +169,7 @@ export class InteractiveSession {
     throw new Error(`No resumable approval found for action ${actionId}`);
   }
 
-  async ask(input: string): Promise<ToolLoopResult> {
+  async ask(input: AgentInput): Promise<ToolLoopResult> {
     if (this.pendingToolApproval) throw new Error(`Approval required first: /approve ${this.pendingToolApproval.actionId}`);
     const repair = this.codingWorkflow?.getRepairSnapshot();
     if (repair?.state === "waiting_approval") throw new Error(`Repair approval required first: /approve ${repair.approval?.actionId ?? "<actionId>"}`);
