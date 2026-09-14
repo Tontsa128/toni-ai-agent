@@ -1,36 +1,51 @@
-import { RepairLoop, type RepairAction, type RepairLoopOptions, type RepairLoopResult, type VerificationAction } from "./RepairLoop.js";
-import { RepairSession, type RepairSessionOptions, type RepairSessionSnapshot, type SessionRepairAction, type SessionVerificationAction } from "./RepairSession.js";
+import {
+  RepairLoop,
+  type RepairAction,
+  type RepairLoopOptions,
+  type RepairLoopResult,
+  type VerificationAction
+} from "./RepairLoop.js";
+import {
+  RepairSession,
+  type RepairSessionOptions,
+  type RepairSessionSnapshot,
+  type SessionRepairAction,
+  type SessionVerificationAction
+} from "./RepairSession.js";
 import type { RepairPlan } from "../debug/SelfDebugger.js";
 import type { VerificationResult } from "./VerificationEngine.js";
 
 export interface CodingRepairCoordinatorOptions extends RepairLoopOptions {
+  mode?: "legacy";
   verify: VerificationAction;
   repair: RepairAction;
 }
 
 export interface ResumableCodingRepairCoordinatorOptions extends RepairSessionOptions {
+  mode: "resumable";
   verify: SessionVerificationAction;
   repair: SessionRepairAction;
 }
 
 export class CodingRepairCoordinator {
-  private readonly loop?: RepairLoop;
-  private readonly loopVerify?: VerificationAction;
-  private readonly loopRepair?: RepairAction;
-  private readonly session?: RepairSession;
-  private readonly sessionVerify?: SessionVerificationAction;
-  private readonly sessionRepair?: SessionRepairAction;
+  private readonly loop: RepairLoop | undefined;
+  private readonly loopVerify: VerificationAction | undefined;
+  private readonly loopRepair: RepairAction | undefined;
+  private readonly session: RepairSession | undefined;
+  private readonly sessionVerify: SessionVerificationAction | undefined;
+  private readonly sessionRepair: SessionRepairAction | undefined;
 
   constructor(options: CodingRepairCoordinatorOptions | ResumableCodingRepairCoordinatorOptions) {
-    if (options.repair.length >= 3) {
+    if (options.mode === "resumable") {
       this.session = new RepairSession(options);
       this.sessionVerify = options.verify;
       this.sessionRepair = options.repair;
-    } else {
-      this.loop = new RepairLoop(options);
-      this.loopVerify = options.verify;
-      this.loopRepair = options.repair;
+      return;
     }
+
+    this.loop = new RepairLoop(options);
+    this.loopVerify = options.verify;
+    this.loopRepair = options.repair;
   }
 
   async run(): Promise<RepairLoopResult> {
