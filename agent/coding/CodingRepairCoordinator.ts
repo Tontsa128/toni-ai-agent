@@ -12,8 +12,14 @@ import {
   type SessionRepairAction,
   type SessionVerificationAction
 } from "./RepairSession.js";
+import { RepairSessionStore } from "./RepairSessionStore.js";
 import type { RepairPlan } from "../debug/SelfDebugger.js";
 import type { VerificationResult } from "./VerificationEngine.js";
+
+export interface RepairSessionPersistenceOptions {
+  filePath: string;
+  sessionId: string;
+}
 
 export interface CodingRepairCoordinatorOptions extends RepairLoopOptions {
   mode?: "legacy";
@@ -25,6 +31,7 @@ export interface ResumableCodingRepairCoordinatorOptions extends RepairSessionOp
   mode: "resumable";
   verify: SessionVerificationAction;
   repair: SessionRepairAction;
+  persistence?: RepairSessionPersistenceOptions;
 }
 
 export class CodingRepairCoordinator {
@@ -34,10 +41,15 @@ export class CodingRepairCoordinator {
   private readonly session: RepairSession | undefined;
   private readonly sessionVerify: SessionVerificationAction | undefined;
   private readonly sessionRepair: SessionRepairAction | undefined;
+  private readonly sessionStore: RepairSessionStore | undefined;
+  private readonly sessionId: string | undefined;
 
   constructor(options: CodingRepairCoordinatorOptions | ResumableCodingRepairCoordinatorOptions) {
     if (options.mode === "resumable") {
-      this.session = new RepairSession(options);
+      this.sessionStore = options.persistence ? new RepairSessionStore(options.persistence.filePath) : undefined;
+      this.sessionId = options.persistence?.sessionId;
+      const restored = this.sessionStore && this.sessionId ? this.sessionStore.load(this.sessionId) : undefined;
+      this.session = new RepairSession({ maxAttempts: options.maxAttempts, ...(restored ? { snapshot: restored } : {}) });
       this.sessionVerify = options.verify;
       this.sessionRepair = options.repair;
       return;
@@ -59,23 +71,35 @@ export class CodingRepairCoordinator {
     if (!this.session || !this.sessionVerify || !this.sessionRepair) {
       throw new Error("This coordinator is not configured for resumable repair");
     }
-    return this.session.start(this.sessionVerify, this.sessionRepair);
+    const result = await this.session.start(this.sessionVerify, this.sessionRepair);
+    this.persist(result);
+    return result;
   }
 
   async approve(actionId: string): Promise<RepairSessionSnapshot> {
     if (!this.session) throw new Error("This coordinator is not configured for resumable repair");
-    return this.session.approve(actionId);
+    const result = await this.session.approve(actionId);
+    this.persist(result);
+    return result;
   }
 
   reject(actionId: string): RepairSessionSnapshot {
     if (!this.session) throw new Error("This coordinator is not configured for resumable repair");
-    return this.session.reject(actionId);
+    const result = this.session.reject(actionId);
+    this.persist(result);
+    return result;
   }
 
   snapshot(): RepairSessionSnapshot {
     if (!this.session) throw new Error("This coordinator is not configured for resumable repair");
     return this.session.snapshot();
   }
+
+  private persist(snapshot: RepairSessionSnapshot): void {
+    if (!this.sessionStore || !this.sessionId) return;
+    this.sessionStore.save(this.sessionId, snapshot);
+  }
 }
 
 export type { RepairPlan, VerificationResult };
+export { RepairSessionStore };
