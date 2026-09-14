@@ -121,9 +121,13 @@ export class CodingRepairCoordinator {
     if (snapshot.state === "succeeded") this.audit.append({
       type: "repair_succeeded", sessionId: this.auditSessionId(), attempt: snapshot.attempt
     });
-    if (snapshot.state === "failed") this.audit.append({
-      type: "repair_failed", sessionId: this.auditSessionId(), attempt: snapshot.attempt, reason: snapshot.reason
-    });
+    if (snapshot.state === "failed") {
+      const event: Parameters<AuditLog["append"]>[0] = {
+        type: "repair_failed", sessionId: this.auditSessionId(), attempt: snapshot.attempt
+      };
+      if (snapshot.reason !== undefined) event.reason = snapshot.reason;
+      this.audit.append(event);
+    }
   }
 }
 
