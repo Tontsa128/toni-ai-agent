@@ -3,7 +3,7 @@ import { SupervisedToolExecutor } from "../agent/core/SupervisedToolExecutor.js"
 import { AgentOrchestrator } from "../agent/core/AgentOrchestrator.js";
 import { createDefaultToolRegistry, defaultFunctionToolSpecs } from "../agent/tools/DefaultToolRegistry.js";
 import type { PermissionPolicy } from "../agent/core/PermissionEngine.js";
-import type { ResumableCodingRepairCoordinatorOptions } from "../agent/coding/CodingRepairCoordinator.js";
+import type { ResumableCodingRepairCoordinatorOptions, RepairSessionPersistenceOptions } from "../agent/coding/CodingRepairCoordinator.js";
 import { CodingWorkflow } from "./CodingWorkflow.js";
 
 export type SessionCommand =
@@ -14,6 +14,7 @@ export type SessionCommand =
 
 export interface InteractiveRepairOptions {
   maxAttempts?: number;
+  persistence?: RepairSessionPersistenceOptions;
   verify: ResumableCodingRepairCoordinatorOptions["verify"];
   repair: ResumableCodingRepairCoordinatorOptions["repair"];
 }
@@ -70,14 +71,13 @@ export class InteractiveSession {
     this.executor = new SupervisedToolExecutor(this.orchestrator, createDefaultToolRegistry(options.workspace), {
       mode: "coding", workspace: options.workspace, userRequest: "interactive session"
     });
-
-    if (options.codingWorkflow) {
-      this.codingWorkflow = options.codingWorkflow;
-    } else if (options.repair) {
+    if (options.codingWorkflow) this.codingWorkflow = options.codingWorkflow;
+    else if (options.repair) {
       this.codingWorkflow = new CodingWorkflow(options.workspace, policy, {
         model: this.model,
         resumableRepair: {
           ...(options.repair.maxAttempts === undefined ? {} : { maxAttempts: options.repair.maxAttempts }),
+          ...(options.repair.persistence === undefined ? {} : { persistence: options.repair.persistence }),
           verify: options.repair.verify,
           repair: options.repair.repair
         }
@@ -93,9 +93,7 @@ export class InteractiveSession {
   getState() {
     const repair = this.codingWorkflow ? this.codingWorkflow.getRepairSnapshot() : undefined;
     return {
-      model: this.model,
-      workspace: this.options.workspace,
-      requestCount: this.requestCount,
+      model: this.model, workspace: this.options.workspace, requestCount: this.requestCount,
       hasConversation: this.previousResponseId !== undefined,
       pendingApprovals: this.executor.continuations.listActionIds().length,
       pendingRepairApproval: repair?.state === "waiting_approval" ? repair.approval : undefined,
@@ -127,21 +125,20 @@ export class InteractiveSession {
         if (repair?.state === "waiting_approval" && repair.approval) lines.push(`Korjaus: ${repair.approval.actionId}`);
         return { kind: "command", text: lines.length ? `Odottaa hyväksyntää:\n${lines.join("\n")}` : "Ei odottavia hyväksyntöjä." };
       }
-      case "approve":
-        return { kind: "command", text: command.actionId ? `Hyväksyntä suoritetaan komennolla /approve ${command.actionId}.` : "Käyttö: /approve <actionId>" };
-      case "reject":
+      case "approve": return { kind: "command", text: command.actionId ? `Hyväksyntä suoritetaan komennolla /approve ${command.actionId}.` : "Käyttö: /approve <actionId>" };
+      case "reject": {
         if (!command.actionId) return { kind: "command", text: "Käyttö: /reject <actionId>" };
         this.executor.reject(command.actionId);
         if (this.pendingToolApproval?.actionId === command.actionId) this.pendingToolApproval = undefined;
         if (this.codingWorkflow) this.codingWorkflow.rejectRepair(command.actionId);
         return { kind: "command", text: `Toiminto hylätty: ${command.actionId}` };
-      case "model":
+      }
+      case "model": {
         if (!command.value) return { kind: "command", text: `Nykyinen malli: ${this.model}` };
         this.model = command.value; this.previousResponseId = undefined; this.pendingToolApproval = undefined; this.toolLoop = undefined;
         return { kind: "command", text: `Malli vaihdettu: ${this.model}` };
-      case "reset":
-        this.previousResponseId = undefined; this.pendingToolApproval = undefined; this.requestCount = 0;
-        return { kind: "command", text: "Keskustelutila nollattu." };
+      }
+      case "reset": this.previousResponseId = undefined; this.pendingToolApproval = undefined; this.requestCount = 0; return { kind: "command", text: "Keskustelutila nollattu." };
       case "exit": return { kind: "command", text: "Toni AI Agent suljetaan.", exit: true };
       case "request": return undefined;
     }
@@ -152,26 +149,18 @@ export class InteractiveSession {
       const pending = this.pendingToolApproval;
       const result = await this.executor.approveAndResume(actionId);
       this.pendingToolApproval = undefined;
-      const resumed = await this.ensureToolLoop().resumeApprovedCall(
-        pending.responseId,
-        pending.callId,
-        result,
-        defaultFunctionToolSpecs(),
-        this.executor
-      );
+      const resumed = await this.ensureToolLoop().resumeApprovedCall(pending.responseId, pending.callId, result, defaultFunctionToolSpecs(), this.executor);
       this.previousResponseId = resumed.responseId;
       this.requestCount += 1;
       if (resumed.pendingApproval) this.pendingToolApproval = resumed.pendingApproval;
       return resumed.text || JSON.stringify(result.output, null, 2);
     }
-
     if (this.codingWorkflow?.getRepairSnapshot().state === "waiting_approval") {
       const result = await this.codingWorkflow.approveRepair(actionId);
       if (result.state === "waiting_approval") return `Korjaus odottaa edelleen hyväksyntää: ${result.approval?.actionId ?? actionId}`;
       if (result.state === "succeeded") return "Korjaus hyväksyttiin ja varmennus onnistui.";
       return `Korjaus hyväksyntä käsitelty: ${result.state}${result.reason ? ` — ${result.reason}` : ""}`;
     }
-
     throw new Error(`No resumable approval found for action ${actionId}`);
   }
 
@@ -179,19 +168,12 @@ export class InteractiveSession {
     if (this.pendingToolApproval) throw new Error(`Approval required first: /approve ${this.pendingToolApproval.actionId}`);
     const repair = this.codingWorkflow?.getRepairSnapshot();
     if (repair?.state === "waiting_approval") throw new Error(`Repair approval required first: /approve ${repair.approval?.actionId ?? "<actionId>"}`);
-
-    const result = await this.ensureToolLoop().run(
-      input,
-      defaultFunctionToolSpecs(),
-      this.executor,
-      [
-        "Olet Toni AI Agent, paikallinen ensisijaisesti suomenkielinen tekninen avustaja.",
-        "Inspect before editing. Älä arvaa. Käytä vain annettuja työkaluja.",
-        "Työkalut ovat turvallisuusvalvottuja. Hyväksyntää vaativaa toimintoa ei saa kiertää.",
-        "Älä väitä tehneesi muutosta, jota työkalu ei vahvista.", `Työtila: ${this.options.workspace}`
-      ].join("\n"),
-      this.previousResponseId
-    );
+    const result = await this.ensureToolLoop().run(input, defaultFunctionToolSpecs(), this.executor, [
+      "Olet Toni AI Agent, paikallinen ensisijaisesti suomenkielinen tekninen avustaja.",
+      "Inspect before editing. Älä arvaa. Käytä vain annettuja työkaluja.",
+      "Työkalut ovat turvallisuusvalvottuja. Hyväksyntää vaativaa toimintoa ei saa kiertää.",
+      "Älä väitä tehneesi muutosta, jota työkalu ei vahvista.", `Työtila: ${this.options.workspace}`
+    ].join("\n"), this.previousResponseId);
     this.previousResponseId = result.responseId;
     this.pendingToolApproval = result.pendingApproval;
     this.requestCount += 1;
