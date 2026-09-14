@@ -25,10 +25,14 @@ test("AuditLog appends sanitized lifecycle events", () => {
   });
 
   const lines = readFileSync(filePath, "utf8").trim().split("\n").map((line) => JSON.parse(line) as Record<string, unknown>);
+  const first = lines[0];
+  const second = lines[1];
+  assert.ok(first);
+  assert.ok(second);
   assert.equal(lines.length, 2);
-  assert.equal(lines[0].type, "repair_approval_requested");
-  assert.equal(lines[0].summary, "token=[REDACTED] repair for package");
-  assert.equal(lines[1].type, "repair_approved");
-  assert.equal(typeof lines[0].eventId, "string");
-  assert.equal(typeof lines[0].timestamp, "string");
+  assert.equal(first.type, "repair_approval_requested");
+  assert.equal(first.summary, "token=[REDACTED] repair for package");
+  assert.equal(second.type, "repair_approved");
+  assert.equal(typeof first.eventId, "string");
+  assert.equal(typeof first.timestamp, "string");
 });
