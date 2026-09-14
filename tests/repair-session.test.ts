@@ -139,3 +139,37 @@ test("never exceeds three verification attempts", async () => {
   assert.equal(repairs, 2);
   assert.equal(result.reason, "Repair attempt limit reached");
 });
+
+test("verification exceptions fail the session instead of leaking an error", async () => {
+  const session = new RepairSession();
+
+  const result = await session.start(
+    async () => {
+      throw new Error("verification runner crashed");
+    },
+    async () => ({ status: "repaired" })
+  );
+
+  assert.equal(result.state, "failed");
+  assert.equal(result.reason, "verification runner crashed");
+});
+
+test("concurrent start calls perform only one verification", async () => {
+  let verifications = 0;
+  const session = new RepairSession();
+  const verify = async () => {
+    verifications += 1;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    return passed();
+  };
+  const repair = async () => ({ status: "repaired" as const });
+
+  const [first, second] = await Promise.all([
+    session.start(verify, repair),
+    session.start(verify, repair)
+  ]);
+
+  assert.equal(verifications, 1);
+  assert.equal(first.state, "succeeded");
+  assert.deepEqual(second, first);
+});
