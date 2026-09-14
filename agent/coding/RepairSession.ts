@@ -94,12 +94,19 @@ export class RepairSession {
 
     this.repairInFlight = true;
     this.state = "repairing";
+    let result: SessionRepairResult;
     try {
-      const result = await this.repairAction(this.repairPlan, this.attempt, true);
-      return await this.handleRepairResult(result);
+      result = await this.repairAction(this.repairPlan, this.attempt, true);
+    } catch (error) {
+      result = {
+        status: "failed",
+        reason: error instanceof Error ? error.message : String(error)
+      };
     } finally {
       this.repairInFlight = false;
     }
+
+    return this.handleRepairResult(result);
   }
 
   reject(actionId: string): RepairSessionSnapshot {
@@ -143,12 +150,19 @@ export class RepairSession {
     if (!this.repairPlan || !this.repairAction || this.repairInFlight) return;
     this.repairInFlight = true;
     this.state = "repairing";
+    let result: SessionRepairResult;
     try {
-      const result = await this.repairAction(this.repairPlan, this.attempt, false);
-      await this.handleRepairResult(result);
+      result = await this.repairAction(this.repairPlan, this.attempt, false);
+    } catch (error) {
+      result = {
+        status: "failed",
+        reason: error instanceof Error ? error.message : String(error)
+      };
     } finally {
       this.repairInFlight = false;
     }
+
+    await this.handleRepairResult(result);
   }
 
   private async handleRepairResult(result: SessionRepairResult): Promise<RepairSessionSnapshot> {
