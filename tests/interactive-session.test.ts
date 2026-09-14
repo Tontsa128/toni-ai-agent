@@ -91,7 +91,11 @@ test("wrong repair approval id does not execute the repair", async () => {
   });
 
   await session.startRepair();
-  await assert.rejects(() => session.approve("wrong-id"), /No resumable approval found/);
+  const before = session.getState();
+  const result = await session.approve("wrong-id");
+
+  assert.match(result, /Korjaus hyväksyntä käsitelty/);
   assert.equal(approvedCalls, 1);
   assert.equal(session.getState().pendingRepairApproval?.actionId, "real-repair-id");
+  assert.equal(session.getState().repairState, before.repairState);
 });
