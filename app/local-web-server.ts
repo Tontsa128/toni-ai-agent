@@ -42,6 +42,18 @@ const server = createServer(async (req, res) => {
       if (parts.length === 0) throw new Error("Anna viesti tai liitä vähintään yksi tiedosto.");
       return sendJson(res, 200, await session.ask(parts));
     }
+    if (req.method === "POST" && req.url === "/api/approve") {
+      const body = await readJson(req);
+      const actionId = typeof body.actionId === "string" ? body.actionId.trim() : "";
+      if (!actionId) throw new Error("actionId puuttuu.");
+      return sendJson(res, 200, { text: await session.approve(actionId), state: session.getState() });
+    }
+    if (req.method === "POST" && req.url === "/api/reject") {
+      const body = await readJson(req);
+      const actionId = typeof body.actionId === "string" ? body.actionId.trim() : "";
+      if (!actionId) throw new Error("actionId puuttuu.");
+      return sendJson(res, 200, { text: session.reject(actionId), state: session.getState() });
+    }
     return sendJson(res, 404, { error: "Not found" });
   } catch (error) {
     return sendJson(res, 400, { error: error instanceof Error ? error.message : String(error) });
@@ -76,6 +88,14 @@ async function readRequestBody(req: IncomingMessage, limit: number): Promise<Buf
     chunks.push(buffer);
   }
   return Buffer.concat(chunks);
+}
+
+async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
+  const body = await readRequestBody(req, 64 * 1024);
+  if (!body.length) return {};
+  const parsed: unknown = JSON.parse(body.toString("utf8"));
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) throw new Error("Virheellinen JSON-pyyntö.");
+  return parsed as Record<string, unknown>;
 }
 
 function send(res: ServerResponse, status: number, contentType: string, body: string) {
