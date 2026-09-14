@@ -80,7 +80,8 @@ test("tool and repair approvals remain isolated in the shared workflow", async (
   const session = new InteractiveSession({ workspace: "C:/toni-ai-agent", codingWorkflow: workflow });
 
   await session.startRepair();
-  await assert.rejects(() => session.approve("tool-action-id"), /No resumable approval found/);
+  const result = await session.approve("tool-action-id");
+  assert.match(result, /Korjaus odottaa edelleen hyväksyntää/);
   assert.equal(repairCalls, 1);
   assert.equal(workflow.getRepairSnapshot().state, "waiting_approval");
 });
