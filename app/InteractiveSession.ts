@@ -3,10 +3,8 @@ import { SupervisedToolExecutor } from "../agent/core/SupervisedToolExecutor.js"
 import { AgentOrchestrator } from "../agent/core/AgentOrchestrator.js";
 import { createDefaultToolRegistry, defaultFunctionToolSpecs } from "../agent/tools/DefaultToolRegistry.js";
 import type { PermissionPolicy } from "../agent/core/PermissionEngine.js";
-import {
-  CodingRepairCoordinator,
-  type ResumableCodingRepairCoordinatorOptions
-} from "../agent/coding/CodingRepairCoordinator.js";
+import type { ResumableCodingRepairCoordinatorOptions } from "../agent/coding/CodingRepairCoordinator.js";
+import { CodingWorkflow } from "./CodingWorkflow.js";
 
 export type SessionCommand =
   | { type: "help" } | { type: "reset" } | { type: "status" }
@@ -25,6 +23,7 @@ export interface InteractiveSessionOptions {
   workspace: string;
   policy?: PermissionPolicy;
   repair?: InteractiveRepairOptions;
+  codingWorkflow?: CodingWorkflow;
 }
 
 export interface SessionReply { kind: "command" | "model" | "tool"; text: string; exit?: boolean; }
@@ -57,7 +56,7 @@ export function parseSessionInput(input: string): SessionCommand {
 export class InteractiveSession {
   private readonly orchestrator: AgentOrchestrator;
   private readonly executor: SupervisedToolExecutor;
-  private readonly repairCoordinator: CodingRepairCoordinator | undefined;
+  private readonly codingWorkflow: CodingWorkflow | undefined;
   private toolLoop: OpenAIToolLoop | undefined;
   private model: string;
   private previousResponseId: string | undefined;
@@ -66,16 +65,22 @@ export class InteractiveSession {
 
   constructor(private readonly options: InteractiveSessionOptions) {
     this.model = options.model ?? process.env.OPENAI_MODEL ?? "gpt-5.6-luna";
-    this.orchestrator = new AgentOrchestrator(options.policy ?? FALLBACK_POLICY);
+    const policy = options.policy ?? FALLBACK_POLICY;
+    this.orchestrator = new AgentOrchestrator(policy);
     this.executor = new SupervisedToolExecutor(this.orchestrator, createDefaultToolRegistry(options.workspace), {
       mode: "coding", workspace: options.workspace, userRequest: "interactive session"
     });
-    if (options.repair) {
-      this.repairCoordinator = new CodingRepairCoordinator({
-        mode: "resumable",
-        ...(options.repair.maxAttempts === undefined ? {} : { maxAttempts: options.repair.maxAttempts }),
-        verify: options.repair.verify,
-        repair: options.repair.repair
+
+    if (options.codingWorkflow) {
+      this.codingWorkflow = options.codingWorkflow;
+    } else if (options.repair) {
+      this.codingWorkflow = new CodingWorkflow(options.workspace, policy, {
+        model: this.model,
+        resumableRepair: {
+          ...(options.repair.maxAttempts === undefined ? {} : { maxAttempts: options.repair.maxAttempts }),
+          verify: options.repair.verify,
+          repair: options.repair.repair
+        }
       });
     }
   }
@@ -86,7 +91,7 @@ export class InteractiveSession {
   }
 
   getState() {
-    const repair = this.repairCoordinator?.snapshot();
+    const repair = this.codingWorkflow ? this.codingWorkflow.getRepairSnapshot() : undefined;
     return {
       model: this.model,
       workspace: this.options.workspace,
@@ -117,7 +122,7 @@ export class InteractiveSession {
       }
       case "approvals": {
         const ids = this.executor.continuations.listActionIds();
-        const repair = this.repairCoordinator?.snapshot();
+        const repair = this.codingWorkflow ? this.codingWorkflow.getRepairSnapshot() : undefined;
         const lines = [...ids.map((id) => `Työkalu: ${id}`)];
         if (repair?.state === "waiting_approval" && repair.approval) lines.push(`Korjaus: ${repair.approval.actionId}`);
         return { kind: "command", text: lines.length ? `Odottaa hyväksyntää:\n${lines.join("\n")}` : "Ei odottavia hyväksyntöjä." };
@@ -128,7 +133,7 @@ export class InteractiveSession {
         if (!command.actionId) return { kind: "command", text: "Käyttö: /reject <actionId>" };
         this.executor.reject(command.actionId);
         if (this.pendingToolApproval?.actionId === command.actionId) this.pendingToolApproval = undefined;
-        if (this.repairCoordinator) this.repairCoordinator.reject(command.actionId);
+        if (this.codingWorkflow) this.codingWorkflow.rejectRepair(command.actionId);
         return { kind: "command", text: `Toiminto hylätty: ${command.actionId}` };
       case "model":
         if (!command.value) return { kind: "command", text: `Nykyinen malli: ${this.model}` };
@@ -160,8 +165,8 @@ export class InteractiveSession {
       return resumed.text || JSON.stringify(result.output, null, 2);
     }
 
-    if (this.repairCoordinator?.snapshot().state === "waiting_approval") {
-      const result = await this.repairCoordinator.approve(actionId);
+    if (this.codingWorkflow?.getRepairSnapshot().state === "waiting_approval") {
+      const result = await this.codingWorkflow.approveRepair(actionId);
       if (result.state === "waiting_approval") return `Korjaus odottaa edelleen hyväksyntää: ${result.approval?.actionId ?? actionId}`;
       if (result.state === "succeeded") return "Korjaus hyväksyttiin ja varmennus onnistui.";
       return `Korjaus hyväksyntä käsitelty: ${result.state}${result.reason ? ` — ${result.reason}` : ""}`;
@@ -172,7 +177,7 @@ export class InteractiveSession {
 
   async ask(input: string): Promise<ToolLoopResult> {
     if (this.pendingToolApproval) throw new Error(`Approval required first: /approve ${this.pendingToolApproval.actionId}`);
-    const repair = this.repairCoordinator?.snapshot();
+    const repair = this.codingWorkflow?.getRepairSnapshot();
     if (repair?.state === "waiting_approval") throw new Error(`Repair approval required first: /approve ${repair.approval?.actionId ?? "<actionId>"}`);
 
     const result = await this.ensureToolLoop().run(
@@ -193,9 +198,9 @@ export class InteractiveSession {
     return result;
   }
 
-  async startRepair(): Promise<ReturnType<CodingRepairCoordinator["snapshot"]>> {
-    if (!this.repairCoordinator) throw new Error("Resumable repair is not configured for this session");
+  async startRepair(): Promise<ReturnType<CodingWorkflow["getRepairSnapshot"]>> {
+    if (!this.codingWorkflow) throw new Error("Resumable repair is not configured for this session");
     if (this.pendingToolApproval) throw new Error(`Approval required first: /approve ${this.pendingToolApproval.actionId}`);
-    return this.repairCoordinator.start();
+    return this.codingWorkflow.startRepair();
   }
 }
