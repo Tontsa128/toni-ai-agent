@@ -19,7 +19,11 @@ export class AgentOrchestrator {
 
   authorize(context: AgentContext, invocation: ToolInvocation): PlannedAction {
     const supervised = this.supervisor.inspect(invocation);
-    const action = this.permissions.evaluate({ ...supervised, id: randomUUID(), createdAt: new Date().toISOString() }, context);
+    const action = this.permissions.evaluate(
+      { ...supervised, id: randomUUID(), createdAt: new Date().toISOString() },
+      context,
+      invocation.input
+    );
     const result: PlannedAction = { ...action, status: action.requiresApproval ? "approval_required" : "ready" };
     if (result.requiresApproval) this.approvals.request({ action: result, reason: `Approval required for ${result.risk}-risk operation.` });
     return result;
