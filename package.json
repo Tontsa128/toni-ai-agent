@@ -15,6 +15,10 @@
     "dev:web": "node --watch --import tsx app/local-web-server.ts"
   },
   "engines": { "node": ">=22" },
-  "dependencies": { "openai": "^7.9.0", "playwright": "^1.55.0" },
+  "dependencies": {
+    "docx": "^9.7.1",
+    "openai": "^7.9.0",
+    "playwright": "^1.55.0"
+  },
   "devDependencies": { "@types/node": "^22.15.0", "tsx": "^4.19.0", "typescript": "^5.8.0" }
 }
