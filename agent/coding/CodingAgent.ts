@@ -4,9 +4,13 @@ import { SupervisedToolExecutor } from "../core/SupervisedToolExecutor.js";
 import { OpenAIToolLoop, type ToolLoopResult } from "../providers/OpenAIToolLoop.js";
 import { createDefaultToolRegistry, defaultFunctionToolSpecs } from "../tools/DefaultToolRegistry.js";
 import { RepositoryScanner, type RepositoryMap } from "./RepositoryScanner.js";
-import { CodingRepairCoordinator } from "./CodingRepairCoordinator.js";
+import {
+  CodingRepairCoordinator,
+  type ResumableCodingRepairCoordinatorOptions
+} from "./CodingRepairCoordinator.js";
 import type { RepairAction, RepairLoopResult, VerificationAction } from "./RepairLoop.js";
 import type { PermissionPolicy } from "../core/PermissionEngine.js";
+import type { RepairSessionSnapshot } from "./RepairSession.js";
 
 export interface CodingAgentOptions {
   model?: string;
@@ -14,12 +18,14 @@ export interface CodingAgentOptions {
   repairMaxAttempts?: number;
   verification?: VerificationAction;
   repair?: RepairAction;
+  resumableRepair?: Omit<ResumableCodingRepairCoordinatorOptions, "mode">;
 }
 
 export interface CodingAgentResult {
   repository: RepositoryMap;
   loop: ToolLoopResult;
   repair?: RepairLoopResult;
+  repairSession?: RepairSessionSnapshot;
 }
 
 const CODING_INSTRUCTIONS = [
@@ -39,6 +45,7 @@ export class CodingAgent {
   private readonly toolLoop: OpenAIToolLoop;
   private readonly executor: SupervisedToolExecutor;
   private readonly repairOptions: Pick<CodingAgentOptions, "repairMaxAttempts" | "verification" | "repair">;
+  private readonly resumableRepair: CodingRepairCoordinator | undefined;
 
   constructor(
     private readonly workspace: string,
@@ -56,6 +63,15 @@ export class CodingAgent {
       ...(options.verification === undefined ? {} : { verification: options.verification }),
       ...(options.repair === undefined ? {} : { repair: options.repair })
     };
+
+    if (options.resumableRepair) {
+      this.resumableRepair = new CodingRepairCoordinator({
+        mode: "resumable",
+        ...(options.resumableRepair.maxAttempts === undefined ? {} : { maxAttempts: options.resumableRepair.maxAttempts }),
+        verify: options.resumableRepair.verify,
+        repair: options.resumableRepair.repair
+      });
+    }
   }
 
   async run(request: string): Promise<CodingAgentResult> {
@@ -68,8 +84,15 @@ export class CodingAgent {
     ].join("\n");
     const loop = await this.toolLoop.run(context, defaultFunctionToolSpecs(), this.executor, CODING_INSTRUCTIONS);
 
-    // Never start automated repair while the model is paused for human approval.
-    if (loop.pendingApproval || !this.repairOptions.verification || !this.repairOptions.repair) {
+    // Never start automated or resumable repair while the model is paused for human approval.
+    if (loop.pendingApproval) return { repository, loop };
+
+    if (this.resumableRepair) {
+      const repairSession = await this.resumableRepair.start();
+      return { repository, loop, repairSession };
+    }
+
+    if (!this.repairOptions.verification || !this.repairOptions.repair) {
       return { repository, loop };
     }
 
@@ -83,6 +106,34 @@ export class CodingAgent {
     const coordinator = new CodingRepairCoordinator(coordinatorOptions);
     const repair = await coordinator.run();
     return { repository, loop, repair };
+  }
+
+  async startRepair(): Promise<RepairSessionSnapshot> {
+    if (!this.resumableRepair) {
+      throw new Error("Resumable repair is not configured for this coding agent");
+    }
+    return this.resumableRepair.start();
+  }
+
+  async approveRepair(actionId: string): Promise<RepairSessionSnapshot> {
+    if (!this.resumableRepair) {
+      throw new Error("Resumable repair is not configured for this coding agent");
+    }
+    return this.resumableRepair.approve(actionId);
+  }
+
+  rejectRepair(actionId: string): RepairSessionSnapshot {
+    if (!this.resumableRepair) {
+      throw new Error("Resumable repair is not configured for this coding agent");
+    }
+    return this.resumableRepair.reject(actionId);
+  }
+
+  getRepairSnapshot(): RepairSessionSnapshot {
+    if (!this.resumableRepair) {
+      throw new Error("Resumable repair is not configured for this coding agent");
+    }
+    return this.resumableRepair.snapshot();
   }
 }
 
