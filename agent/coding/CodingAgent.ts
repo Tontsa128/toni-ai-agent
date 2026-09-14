@@ -42,10 +42,11 @@ const CODING_INSTRUCTIONS = [
 
 export class CodingAgent {
   private readonly scanner: RepositoryScanner;
-  private readonly toolLoop: OpenAIToolLoop;
   private readonly executor: SupervisedToolExecutor;
   private readonly repairOptions: Pick<CodingAgentOptions, "repairMaxAttempts" | "verification" | "repair">;
   private readonly resumableRepair: CodingRepairCoordinator | undefined;
+  private readonly toolLoopOptions: CodingAgentOptions;
+  private toolLoop: OpenAIToolLoop | undefined;
 
   constructor(
     private readonly workspace: string,
@@ -57,7 +58,7 @@ export class CodingAgent {
     const registry = createDefaultToolRegistry(workspace);
     const context: AgentContext = { mode: "coding", workspace, userRequest: "coding task" };
     this.executor = new SupervisedToolExecutor(orchestrator, registry, context);
-    this.toolLoop = new OpenAIToolLoop(options);
+    this.toolLoopOptions = options;
     this.repairOptions = {
       ...(options.repairMaxAttempts === undefined ? {} : { repairMaxAttempts: options.repairMaxAttempts }),
       ...(options.verification === undefined ? {} : { verification: options.verification }),
@@ -74,6 +75,11 @@ export class CodingAgent {
     }
   }
 
+  private ensureToolLoop(): OpenAIToolLoop {
+    if (!this.toolLoop) this.toolLoop = new OpenAIToolLoop(this.toolLoopOptions);
+    return this.toolLoop;
+  }
+
   async run(request: string): Promise<CodingAgentResult> {
     const repository = await this.scanner.scan();
     const context = [
@@ -82,7 +88,7 @@ export class CodingAgent {
       "",
       `User request: ${request}`
     ].join("\n");
-    const loop = await this.toolLoop.run(context, defaultFunctionToolSpecs(), this.executor, CODING_INSTRUCTIONS);
+    const loop = await this.ensureToolLoop().run(context, defaultFunctionToolSpecs(), this.executor, CODING_INSTRUCTIONS);
 
     // Never start automated or resumable repair while the model is paused for human approval.
     if (loop.pendingApproval) return { repository, loop };
