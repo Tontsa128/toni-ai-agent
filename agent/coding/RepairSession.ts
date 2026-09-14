@@ -30,6 +30,7 @@ export type SessionVerificationAction = (attempt: number) => Promise<Verificatio
 
 export interface RepairSessionOptions {
   maxAttempts?: number;
+  snapshot?: RepairSessionSnapshot;
 }
 
 export interface RepairSessionSnapshot {
@@ -43,8 +44,7 @@ export interface RepairSessionSnapshot {
 
 /**
  * Resumable bounded repair state machine. Approval pauses the session without
- * losing the current attempt or repair plan. Approval resumes the exact pending
- * repair once; rejection terminates the session safely.
+ * losing the current attempt or repair plan. Rejection terminates the session safely.
  */
 export class RepairSession {
   private readonly maxAttempts: number;
@@ -62,6 +62,7 @@ export class RepairSession {
 
   constructor(options: RepairSessionOptions = {}) {
     this.maxAttempts = Math.max(1, Math.min(options.maxAttempts ?? 3, 3));
+    if (options.snapshot) this.restore(options.snapshot);
   }
 
   snapshot(): RepairSessionSnapshot {
@@ -86,6 +87,10 @@ export class RepairSession {
     this.started = true;
     this.verifyAction = verify;
     this.repairAction = repair;
+
+    // A restored terminal or approval-waiting state must not be re-run from scratch.
+    if (this.state !== "verifying") return this.snapshot();
+
     this.startPromise = this.runStart();
     return this.startPromise;
   }
@@ -121,6 +126,16 @@ export class RepairSession {
       this.approval = undefined;
     }
     return this.snapshot();
+  }
+
+  private restore(snapshot: RepairSessionSnapshot): void {
+    this.state = snapshot.state;
+    this.attempt = Math.max(1, snapshot.attempt);
+    this.verification = snapshot.verification;
+    this.repairPlan = snapshot.repairPlan;
+    this.approval = snapshot.approval;
+    this.reason = snapshot.reason;
+    this.started = this.state !== "verifying";
   }
 
   private async runStart(): Promise<RepairSessionSnapshot> {
