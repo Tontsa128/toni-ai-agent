@@ -1,4 +1,4 @@
-import { createServer } from "node:http";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, resolve } from "node:path";
 import { loadPolicy } from "../tools/config.js";
@@ -18,34 +18,33 @@ const server = createServer(async (req, res) => {
       const html = await readFile(resolve(workspace, "app/public/agent.html"), "utf8");
       return send(res, 200, "text/html; charset=utf-8", html);
     }
-    if (req.method === "GET" && req.url === "/api/status") {
-      return sendJson(res, 200, session.getState());
-    }
+    if (req.method === "GET" && req.url === "/api/status") return sendJson(res, 200, session.getState());
     if (req.method === "POST" && req.url === "/api/ask") {
       const body = await readRequestBody(req, maxBodyBytes);
       const form = await new Request("http://localhost/api/ask", {
         method: "POST",
         headers: { "content-type": req.headers["content-type"] ?? "application/octet-stream" },
-        body
+        body: new Uint8Array(body)
       }).formData();
       const text = String(form.get("message") ?? "").trim();
       const parts: AgentContentPart[] = [];
       if (text) parts.push({ type: "input_text", text });
+      let fileCount = 0;
       for (const value of form.getAll("files")) {
         if (!(value instanceof File)) continue;
+        fileCount += 1;
+        if (fileCount > 8) throw new Error("Liitteitä voi lähettää enintään 8 kerrallaan.");
         if (value.size > maxFileBytes) throw new Error(`Tiedosto ${value.name} on liian suuri (max 20 MB).`);
         const mediaType = safeMediaType(value.type, value.name);
         const buffer = Buffer.from(await value.arrayBuffer());
         parts.push(attachmentToContent({ filename: value.name, mediaType, size: value.size, content: buffer }));
       }
       if (parts.length === 0) throw new Error("Anna viesti tai liitä vähintään yksi tiedosto.");
-      if (parts.length > 9) throw new Error("Liitteitä voi lähettää enintään 8 kerrallaan.");
-      const result = await session.ask(parts);
-      return sendJson(res, 200, result);
+      return sendJson(res, 200, await session.ask(parts));
     }
-    sendJson(res, 404, { error: "Not found" });
+    return sendJson(res, 404, { error: "Not found" });
   } catch (error) {
-    sendJson(res, 400, { error: error instanceof Error ? error.message : String(error) });
+    return sendJson(res, 400, { error: error instanceof Error ? error.message : String(error) });
   }
 });
 
@@ -64,26 +63,26 @@ function safeMediaType(type: string, filename: string): string {
     ".jsx": "text/plain", ".css": "text/css", ".html": "text/html", ".xml": "application/xml",
     ".yml": "text/plain", ".yaml": "text/plain"
   };
-  return map[ext] ?? normalized || "application/octet-stream";
+  return map[ext] ?? (normalized || "application/octet-stream");
 }
 
-async function readRequestBody(req: import("node:http").IncomingMessage, limit: number): Promise<Buffer> {
+async function readRequestBody(req: IncomingMessage, limit: number): Promise<Buffer> {
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of req) {
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     size += buffer.length;
-    if (size > limit) throw new Error("Pyyntö on liian suuri (max 30 MB). ");
+    if (size > limit) throw new Error("Pyyntö on liian suuri (max 30 MB).");
     chunks.push(buffer);
   }
   return Buffer.concat(chunks);
 }
 
-function send(res: import("node:http").ServerResponse, status: number, contentType: string, body: string) {
+function send(res: ServerResponse, status: number, contentType: string, body: string) {
   res.writeHead(status, { "content-type": contentType, "cache-control": "no-store" });
   res.end(body);
 }
 
-function sendJson(res: import("node:http").ServerResponse, status: number, body: unknown) {
+function sendJson(res: ServerResponse, status: number, body: unknown) {
   send(res, status, "application/json; charset=utf-8", JSON.stringify(body));
 }
