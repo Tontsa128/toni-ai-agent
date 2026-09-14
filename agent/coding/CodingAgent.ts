@@ -69,6 +69,8 @@ export class CodingAgent {
       this.resumableRepair = new CodingRepairCoordinator({
         mode: "resumable",
         ...(options.resumableRepair.maxAttempts === undefined ? {} : { maxAttempts: options.resumableRepair.maxAttempts }),
+        ...(options.resumableRepair.persistence === undefined ? {} : { persistence: options.resumableRepair.persistence }),
+        ...(options.resumableRepair.audit === undefined ? {} : { audit: options.resumableRepair.audit }),
         verify: options.resumableRepair.verify,
         repair: options.resumableRepair.repair
       });
