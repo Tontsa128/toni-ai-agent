@@ -9,8 +9,10 @@
     "test": "node --test dist/tests/**/*.test.js",
     "start": "node dist/app/interactive-cli.js",
     "start:plan": "node dist/app/cli.js",
+    "start:web": "node dist/app/local-web-server.js",
     "dev": "node --watch --import tsx app/interactive-cli.ts",
-    "dev:plan": "node --import tsx app/cli.ts"
+    "dev:plan": "node --import tsx app/cli.ts",
+    "dev:web": "node --watch --import tsx app/local-web-server.ts"
   },
   "engines": { "node": ">=22" },
   "dependencies": { "openai": "^7.9.0", "playwright": "^1.55.0" },
