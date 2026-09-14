@@ -21,7 +21,9 @@ export class TerminalExecutor {
   async run(request: ExecutionRequest): Promise<ExecutionResult> {
     const parsed = this.parseCommand(request.command);
     if (!parsed) return this.blocked("Command could not be parsed safely");
-    const [rawExecutable, ...args] = parsed;
+    const rawExecutable = parsed[0];
+    if (!rawExecutable) return this.blocked("Executable is missing");
+    const args = parsed.slice(1);
     const executable = this.normalizeExecutable(rawExecutable);
     const normalizedCommand = [executable, ...args].map(quoteForPreflight).join(" ");
     const cwd = path.resolve(request.cwd);
@@ -31,20 +33,14 @@ export class TerminalExecutor {
     const started = Date.now();
     return new Promise((resolve) => {
       const child = spawn(executable, args, {
-        cwd,
-        shell: false,
-        windowsHide: true,
+        cwd, shell: false, windowsHide: true,
         env: { ...process.env, ...(request.env ?? {}) },
         stdio: ["ignore", "pipe", "pipe"]
       });
       let stdout = "";
       let stderr = "";
       let settled = false;
-      const finish = (result: ExecutionResult) => {
-        if (settled) return;
-        settled = true;
-        resolve(result);
-      };
+      const finish = (result: ExecutionResult) => { if (!settled) { settled = true; resolve(result); } };
       const limit = (value: string) => value.slice(0, this.options.policy.maxOutputBytes);
       child.stdout?.on("data", (chunk: Buffer | string) => { stdout = limit(stdout + chunk.toString()); });
       child.stderr?.on("data", (chunk: Buffer | string) => { stderr = limit(stderr + chunk.toString()); });
@@ -71,38 +67,13 @@ export class TerminalExecutor {
     let quote: "'" | '"' | undefined;
     let escaping = false;
     let tokenStarted = false;
-
     for (const char of input) {
-      if (escaping) {
-        current += char;
-        escaping = false;
-        tokenStarted = true;
-        continue;
-      }
-      if (char === "\\" && quote !== "'") {
-        escaping = true;
-        tokenStarted = true;
-        continue;
-      }
-      if (quote) {
-        if (char === quote) quote = undefined;
-        else current += char;
-        tokenStarted = true;
-        continue;
-      }
-      if (char === "'" || char === '"') {
-        quote = char;
-        tokenStarted = true;
-      } else if (/\s/.test(char)) {
-        if (tokenStarted) {
-          args.push(current);
-          current = "";
-          tokenStarted = false;
-        }
-      } else {
-        current += char;
-        tokenStarted = true;
-      }
+      if (escaping) { current += char; escaping = false; tokenStarted = true; continue; }
+      if (char === "\\" && quote !== "'") { escaping = true; tokenStarted = true; continue; }
+      if (quote) { if (char === quote) quote = undefined; else current += char; tokenStarted = true; continue; }
+      if (char === "'" || char === '"') { quote = char; tokenStarted = true; }
+      else if (/\s/.test(char)) { if (tokenStarted) { args.push(current); current = ""; tokenStarted = false; } }
+      else { current += char; tokenStarted = true; }
     }
     if (escaping || quote || tokenStarted) args.push(current);
     if (quote || args.length === 0 || args.length > 64 || args.some((arg) => arg.length > 4096)) return undefined;
@@ -110,8 +81,7 @@ export class TerminalExecutor {
   }
 
   private normalizeExecutable(executable: string): string {
-    const key = executable.toLowerCase();
-    const alias = this.aliases[key] ?? executable;
+    const alias = this.aliases[executable.toLowerCase()] ?? executable;
     if (process.platform === "win32") {
       const lower = alias.toLowerCase();
       if (["npm", "npx", "pnpm", "yarn"].includes(lower) && !lower.endsWith(".cmd")) return `${alias}.cmd`;
@@ -124,6 +94,4 @@ export class TerminalExecutor {
   }
 }
 
-function quoteForPreflight(value: string): string {
-  return /\s/.test(value) ? JSON.stringify(value) : value;
-}
+function quoteForPreflight(value: string): string { return /\s/.test(value) ? JSON.stringify(value) : value; }
