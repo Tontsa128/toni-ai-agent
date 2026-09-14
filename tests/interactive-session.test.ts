@@ -94,7 +94,7 @@ test("wrong repair approval id does not execute the repair", async () => {
   const before = session.getState();
   const result = await session.approve("wrong-id");
 
-  assert.match(result, /Korjaus hyväksyntä käsitelty/);
+  assert.equal(result, "Korjaus odottaa edelleen hyväksyntää: real-repair-id");
   assert.equal(approvedCalls, 1);
   assert.equal(session.getState().pendingRepairApproval?.actionId, "real-repair-id");
   assert.equal(session.getState().repairState, before.repairState);
