@@ -3,7 +3,7 @@ import { SupervisedToolExecutor } from "../agent/core/SupervisedToolExecutor.js"
 import { AgentOrchestrator } from "../agent/core/AgentOrchestrator.js";
 import { createDefaultToolRegistry, defaultFunctionToolSpecs } from "../agent/tools/DefaultToolRegistry.js";
 import type { PermissionPolicy } from "../agent/core/PermissionEngine.js";
-import type { ResumableCodingRepairCoordinatorOptions, RepairSessionPersistenceOptions } from "../agent/coding/CodingRepairCoordinator.js";
+import type { ResumableCodingRepairCoordinatorOptions, RepairSessionPersistenceOptions, RepairAuditOptions } from "../agent/coding/CodingRepairCoordinator.js";
 import { CodingWorkflow } from "./CodingWorkflow.js";
 
 export type SessionCommand =
@@ -15,6 +15,7 @@ export type SessionCommand =
 export interface InteractiveRepairOptions {
   maxAttempts?: number;
   persistence?: RepairSessionPersistenceOptions;
+  audit?: RepairAuditOptions;
   verify: ResumableCodingRepairCoordinatorOptions["verify"];
   repair: ResumableCodingRepairCoordinatorOptions["repair"];
 }
@@ -78,6 +79,7 @@ export class InteractiveSession {
         resumableRepair: {
           ...(options.repair.maxAttempts === undefined ? {} : { maxAttempts: options.repair.maxAttempts }),
           ...(options.repair.persistence === undefined ? {} : { persistence: options.repair.persistence }),
+          ...(options.repair.audit === undefined ? {} : { audit: options.repair.audit }),
           verify: options.repair.verify,
           repair: options.repair.repair
         }
