@@ -42,11 +42,12 @@ const writeWordDocumentTool = (workspace: string): ToolDefinition => ({
     if (typeof value.relativePath !== "string") throw new Error("relativePath is required");
     if (value.title !== undefined && typeof value.title !== "string") throw new Error("title must be a string");
     if (typeof value.content !== "string") throw new Error("content is required");
-    return createWordDocument(workspace, {
+    const documentInput: { relativePath: string; content: string; title?: string } = {
       relativePath: value.relativePath,
-      title: value.title,
       content: value.content
-    });
+    };
+    if (typeof value.title === "string") documentInput.title = value.title;
+    return createWordDocument(workspace, documentInput);
   }
 });
 
