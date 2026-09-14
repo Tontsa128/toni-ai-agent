@@ -16,17 +16,12 @@ import { RepairSessionStore } from "./RepairSessionStore.js";
 import type { RepairPlan } from "../debug/SelfDebugger.js";
 import type { VerificationResult } from "./VerificationEngine.js";
 
-export interface RepairSessionPersistenceOptions {
-  filePath: string;
-  sessionId: string;
-}
-
+export interface RepairSessionPersistenceOptions { filePath: string; sessionId: string; }
 export interface CodingRepairCoordinatorOptions extends RepairLoopOptions {
   mode?: "legacy";
   verify: VerificationAction;
   repair: RepairAction;
 }
-
 export interface ResumableCodingRepairCoordinatorOptions extends RepairSessionOptions {
   mode: "resumable";
   verify: SessionVerificationAction;
@@ -49,28 +44,26 @@ export class CodingRepairCoordinator {
       this.sessionStore = options.persistence ? new RepairSessionStore(options.persistence.filePath) : undefined;
       this.sessionId = options.persistence?.sessionId;
       const restored = this.sessionStore && this.sessionId ? this.sessionStore.load(this.sessionId) : undefined;
-      this.session = new RepairSession({ maxAttempts: options.maxAttempts, ...(restored ? { snapshot: restored } : {}) });
+      const sessionOptions: RepairSessionOptions = {};
+      if (options.maxAttempts !== undefined) sessionOptions.maxAttempts = options.maxAttempts;
+      if (restored) sessionOptions.snapshot = restored;
+      this.session = new RepairSession(sessionOptions);
       this.sessionVerify = options.verify;
       this.sessionRepair = options.repair;
       return;
     }
-
     this.loop = new RepairLoop(options);
     this.loopVerify = options.verify;
     this.loopRepair = options.repair;
   }
 
   async run(): Promise<RepairLoopResult> {
-    if (!this.loop || !this.loopVerify || !this.loopRepair) {
-      throw new Error("This coordinator was configured for resumable repair; use start(), approve(), or reject().");
-    }
+    if (!this.loop || !this.loopVerify || !this.loopRepair) throw new Error("This coordinator was configured for resumable repair; use start(), approve(), or reject().");
     return this.loop.run(this.loopVerify, this.loopRepair);
   }
 
   async start(): Promise<RepairSessionSnapshot> {
-    if (!this.session || !this.sessionVerify || !this.sessionRepair) {
-      throw new Error("This coordinator is not configured for resumable repair");
-    }
+    if (!this.session || !this.sessionVerify || !this.sessionRepair) throw new Error("This coordinator is not configured for resumable repair");
     const result = await this.session.start(this.sessionVerify, this.sessionRepair);
     this.persist(result);
     return result;
