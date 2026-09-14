@@ -55,6 +55,7 @@ export class CodingRepairCoordinator {
       this.session = new RepairSession(sessionOptions);
       this.sessionVerify = options.verify;
       this.sessionRepair = options.repair;
+      this.session.bindActions(this.sessionVerify, this.sessionRepair);
       return;
     }
     this.loop = new RepairLoop(options);
