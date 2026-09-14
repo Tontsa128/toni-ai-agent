@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { CodingAgent } from "../agent/coding/CodingAgent.js";
 import type { VerificationResult } from "../agent/coding/VerificationEngine.js";
+import type { SessionRepairAction } from "../agent/coding/RepairSession.js";
 import type { PermissionPolicy } from "../agent/core/PermissionEngine.js";
 
 const policy: PermissionPolicy = {
@@ -30,7 +31,10 @@ const plan = {
 const failed = (): VerificationResult => ({ ok: false, steps: [], repairPlan: plan });
 const passed = (): VerificationResult => ({ ok: true, steps: [] });
 
-function createAgent(verify: (attempt: number) => Promise<VerificationResult>, repair: Parameters<NonNullable<NonNullable<ConstructorParameters<typeof CodingAgent>[2]>["resumableRepair"]>["repair"]>) {
+function createAgent(
+  verify: (attempt: number) => Promise<VerificationResult>,
+  repair: SessionRepairAction
+) {
   return new CodingAgent("C:/toni-ai-agent", policy, {
     model: "test-model",
     resumableRepair: { verify, repair }
