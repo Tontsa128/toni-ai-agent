@@ -2,37 +2,18 @@ import type { RepairPlan } from "../debug/SelfDebugger.js";
 import type { VerificationResult } from "./VerificationEngine.js";
 
 export type RepairSessionState =
-  | "verifying"
-  | "needs_repair"
-  | "waiting_approval"
-  | "repairing"
-  | "succeeded"
-  | "failed"
-  | "rejected";
+  | "verifying" | "needs_repair" | "waiting_approval" | "repairing"
+  | "succeeded" | "failed" | "rejected";
 
-export interface RepairApprovalRequest {
-  actionId: string;
-  attempt: number;
-  description: string;
-}
-
+export interface RepairApprovalRequest { actionId: string; attempt: number; description: string; }
 export type SessionRepairResult =
   | { status: "repaired" }
   | { status: "approval_required"; actionId: string; description: string }
   | { status: "failed"; reason: string };
-
-export type SessionRepairAction = (
-  plan: RepairPlan,
-  attempt: number,
-  approved: boolean
-) => Promise<SessionRepairResult>;
+export type SessionRepairAction = (plan: RepairPlan, attempt: number, approved: boolean) => Promise<SessionRepairResult>;
 export type SessionVerificationAction = (attempt: number) => Promise<VerificationResult>;
 
-export interface RepairSessionOptions {
-  maxAttempts?: number;
-  snapshot?: RepairSessionSnapshot;
-}
-
+export interface RepairSessionOptions { maxAttempts?: number; snapshot?: RepairSessionSnapshot; }
 export interface RepairSessionSnapshot {
   state: RepairSessionState;
   attempt: number;
@@ -42,10 +23,7 @@ export interface RepairSessionSnapshot {
   reason?: string;
 }
 
-/**
- * Resumable bounded repair state machine. Approval pauses the session without
- * losing the current attempt or repair plan. Rejection terminates the session safely.
- */
+/** Resumable bounded repair state machine with explicit human approval. */
 export class RepairSession {
   private readonly maxAttempts: number;
   private state: RepairSessionState = "verifying";
@@ -66,10 +44,7 @@ export class RepairSession {
   }
 
   snapshot(): RepairSessionSnapshot {
-    const snapshot: RepairSessionSnapshot = {
-      state: this.state,
-      attempt: this.attempt
-    };
+    const snapshot: RepairSessionSnapshot = { state: this.state, attempt: this.attempt };
     if (this.verification !== undefined) snapshot.verification = this.verification;
     if (this.repairPlan !== undefined) snapshot.repairPlan = this.repairPlan;
     if (this.approval !== undefined) snapshot.approval = this.approval;
@@ -77,45 +52,28 @@ export class RepairSession {
     return snapshot;
   }
 
-  async start(
-    verify: SessionVerificationAction,
-    repair: SessionRepairAction
-  ): Promise<RepairSessionSnapshot> {
+  async start(verify: SessionVerificationAction, repair: SessionRepairAction): Promise<RepairSessionSnapshot> {
     if (this.startPromise) return this.startPromise;
-    if (this.started) return this.snapshot();
-
-    this.started = true;
     this.verifyAction = verify;
     this.repairAction = repair;
-
-    // A restored terminal or approval-waiting state must not be re-run from scratch.
+    if (this.started) return this.snapshot();
+    this.started = true;
     if (this.state !== "verifying") return this.snapshot();
-
     this.startPromise = this.runStart();
     return this.startPromise;
   }
 
   async approve(actionId: string): Promise<RepairSessionSnapshot> {
-    if (this.state !== "waiting_approval" || !this.approval || this.approval.actionId !== actionId) {
-      return this.snapshot();
-    }
+    if (this.state !== "waiting_approval" || !this.approval || this.approval.actionId !== actionId) return this.snapshot();
     if (!this.repairPlan || !this.repairAction) return this.fail("Pending repair is unavailable");
     if (this.repairInFlight) return this.snapshot();
 
     this.repairInFlight = true;
     this.state = "repairing";
     let result: SessionRepairResult;
-    try {
-      result = await this.repairAction(this.repairPlan, this.attempt, true);
-    } catch (error) {
-      result = {
-        status: "failed",
-        reason: error instanceof Error ? error.message : String(error)
-      };
-    } finally {
-      this.repairInFlight = false;
-    }
-
+    try { result = await this.repairAction(this.repairPlan, this.attempt, true); }
+    catch (error) { result = { status: "failed", reason: error instanceof Error ? error.message : String(error) }; }
+    finally { this.repairInFlight = false; }
     return this.handleRepairResult(result);
   }
 
@@ -139,24 +97,16 @@ export class RepairSession {
   }
 
   private async runStart(): Promise<RepairSessionSnapshot> {
-    try {
-      await this.verifyCurrent();
-    } catch (error) {
-      this.fail(error instanceof Error ? error.message : String(error));
-    }
+    try { await this.verifyCurrent(); }
+    catch (error) { this.fail(error instanceof Error ? error.message : String(error)); }
     return this.snapshot();
   }
 
   private async verifyCurrent(): Promise<void> {
     if (!this.verifyAction) return;
     this.state = "verifying";
-
-    try {
-      this.verification = await this.verifyAction(this.attempt);
-    } catch (error) {
-      this.fail(error instanceof Error ? error.message : String(error));
-      return;
-    }
+    try { this.verification = await this.verifyAction(this.attempt); }
+    catch (error) { this.fail(error instanceof Error ? error.message : String(error)); return; }
 
     if (this.verification.ok) {
       this.state = "succeeded";
@@ -164,21 +114,12 @@ export class RepairSession {
       this.approval = undefined;
       return;
     }
-
     this.repairPlan = this.verification.repairPlan;
-    if (!this.repairPlan) {
-      this.fail("Verification failed without a repair plan");
-      return;
-    }
+    if (!this.repairPlan) return void this.fail("Verification failed without a repair plan");
     if (!this.repairPlan.safeToRetry || this.repairPlan.outcome === "blocked" || this.repairPlan.outcome === "failed") {
-      this.fail("Repair plan is not safe for automatic retry");
-      return;
+      return void this.fail("Repair plan is not safe for automatic retry");
     }
-    if (this.attempt >= this.maxAttempts) {
-      this.fail("Repair attempt limit reached");
-      return;
-    }
-
+    if (this.attempt >= this.maxAttempts) return void this.fail("Repair attempt limit reached");
     this.state = "needs_repair";
     await this.requestOrRepair();
   }
@@ -188,33 +129,19 @@ export class RepairSession {
     this.repairInFlight = true;
     this.state = "repairing";
     let result: SessionRepairResult;
-    try {
-      result = await this.repairAction(this.repairPlan, this.attempt, false);
-    } catch (error) {
-      result = {
-        status: "failed",
-        reason: error instanceof Error ? error.message : String(error)
-      };
-    } finally {
-      this.repairInFlight = false;
-    }
-
+    try { result = await this.repairAction(this.repairPlan, this.attempt, false); }
+    catch (error) { result = { status: "failed", reason: error instanceof Error ? error.message : String(error) }; }
+    finally { this.repairInFlight = false; }
     await this.handleRepairResult(result);
   }
 
   private async handleRepairResult(result: SessionRepairResult): Promise<RepairSessionSnapshot> {
     if (result.status === "approval_required") {
       this.state = "waiting_approval";
-      this.approval = {
-        actionId: result.actionId,
-        attempt: this.attempt,
-        description: result.description
-      };
+      this.approval = { actionId: result.actionId, attempt: this.attempt, description: result.description };
       return this.snapshot();
     }
-
     if (result.status === "failed") return this.fail(result.reason);
-
     this.approval = undefined;
     this.repairPlan = undefined;
     this.attempt += 1;
