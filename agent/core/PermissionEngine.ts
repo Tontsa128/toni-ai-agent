@@ -14,6 +14,7 @@ export interface PermissionPolicy {
 
 const NEVER_AUTO = new Set(["never_auto", "never"]);
 const ALLOWED = new Set(["allow", "workspace"]);
+const RED_OPERATIONS = new Set(["submit_assignment", "send_message", "send_email", "production_deploy", "use_secret"]);
 const DESTRUCTIVE_TERMINAL = /(^|\s)(rm|del|erase|format|shutdown|reboot|diskpart|mkfs)(\s|$)/i;
 const SAFE_COMMANDS = new Set(["node", "npm", "npx", "pnpm", "yarn", "git", "tsc", "tsx", "python", "python3"]);
 
@@ -22,7 +23,7 @@ export class PermissionEngine {
 
   evaluate(action: AgentAction, context: AgentContext, input?: unknown): AgentAction {
     const permission = this.permissionFor(action, context, input);
-    const risk = this.riskForPermission(permission, action.risk);
+    const risk = RED_OPERATIONS.has(action.operation.toLowerCase()) ? "red" : this.riskForPermission(permission, action.risk);
     return { ...action, risk, requiresApproval: risk !== "green" };
   }
 
@@ -97,10 +98,7 @@ export class PermissionEngine {
 
   private schoolKey(operation: string): string | undefined {
     const normalized = operation.replace(/^school[.:_]?/, "");
-    const aliases: Record<string, string> = {
-      read: "read_assignments", analyse: "analyse_assignments", analyze: "analyse_assignments",
-      draft: "draft_answers", write: "write_to_school_portal", submit: "submit_assignment", send: "send_messages"
-    };
+    const aliases: Record<string, string> = { read: "read_assignments", analyse: "analyse_assignments", analyze: "analyse_assignments", draft: "draft_answers", write: "write_to_school_portal", submit: "submit_assignment", send: "send_messages" };
     return this.policy.school[normalized] ? normalized : aliases[normalized];
   }
 }
