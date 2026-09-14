@@ -3,11 +3,11 @@ import type { AgentAction, AgentContext, ActionRisk } from "../types.js";
 export interface PermissionPolicy {
   filesystem: { read: string; write: string; delete: string };
   terminal: { safe_commands: string; unknown_commands: string; destructive_commands: string };
-  git: { read: string; commit: string; push: string; reset: string };
-  github: { read: string; write: string; merge: string; delete: string };
-  browser: { read: string; write: string; submit: string; download: string };
-  computer: { read: string; click: string; type: string; system: string };
-  system: { settings: string; administrator: string; shutdown: string };
+  git: { read: string; commit: string; push: string; reset?: string };
+  github?: { read: string; write: string; merge: string; delete: string };
+  browser: { read: string; write: string; submit: string; download?: string };
+  computer?: { read: string; click: string; type: string; system: string };
+  system: { settings: string; administrator: string; shutdown?: string };
   school: Record<string, string>;
   security?: Record<string, string>;
 }
@@ -42,32 +42,36 @@ export class PermissionEngine {
       return command && SAFE_COMMANDS.has(command) ? this.policy.terminal.safe_commands : this.policy.terminal.unknown_commands;
     }
     if (tool === "git" || op.startsWith("git_")) {
-      if (op.includes("reset")) return this.policy.git.reset;
+      if (op.includes("reset")) return this.policy.git.reset ?? "approval";
       if (op.includes("push")) return this.policy.git.push;
       if (op.includes("commit")) return this.policy.git.commit;
       return this.policy.git.read;
     }
     if (tool === "github") {
-      if (op.includes("delete")) return this.policy.github.delete;
-      if (op.includes("merge")) return this.policy.github.merge;
-      if (op.includes("write") || op.includes("create") || op.includes("update")) return this.policy.github.write;
-      return this.policy.github.read;
+      const github = this.policy.github;
+      if (!github) return "approval";
+      if (op.includes("delete")) return github.delete;
+      if (op.includes("merge")) return github.merge;
+      if (op.includes("write") || op.includes("create") || op.includes("update")) return github.write;
+      return github.read;
     }
     if (tool === "browser") {
-      if (op.includes("download")) return this.policy.browser.download;
+      if (op.includes("download")) return this.policy.browser.download ?? "approval";
       if (op.includes("submit") || op.includes("send")) return this.policy.browser.submit;
       if (op.includes("write") || op.includes("click") || op.includes("type")) return this.policy.browser.write;
       return this.policy.browser.read;
     }
     if (tool === "computer") {
-      if (op.includes("system")) return this.policy.computer.system;
-      if (op.includes("type")) return this.policy.computer.type;
-      if (op.includes("click")) return this.policy.computer.click;
-      return this.policy.computer.read;
+      const computer = this.policy.computer;
+      if (!computer) return "approval";
+      if (op.includes("system")) return computer.system;
+      if (op.includes("type")) return computer.type;
+      if (op.includes("click")) return computer.click;
+      return computer.read;
     }
     if (tool === "system" || op.includes("administrator") || op.includes("shutdown") || op.includes("system_settings")) {
       if (op.includes("administrator")) return this.policy.system.administrator;
-      if (op.includes("shutdown") || op.includes("reboot")) return this.policy.system.shutdown;
+      if (op.includes("shutdown") || op.includes("reboot")) return this.policy.system.shutdown ?? "never_auto";
       return this.policy.system.settings;
     }
     if (context.mode === "school" || tool === "school") {
