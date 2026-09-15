@@ -16,12 +16,7 @@ export interface BrowserControllerOptions {
   navigationTimeoutMs?: number;
 }
 
-/**
- * Local browser controller foundation. It owns an isolated Playwright context,
- * supports multiple tabs, and never exposes cookies/storage state to the model.
- * Navigation/reading is safe; page mutation is intended to be supervised by
- * the tool/permission layer.
- */
+/** Local Playwright controller with an isolated browser context. */
 export class BrowserController {
   private readonly maxTabs: number;
   private readonly navigationTimeoutMs: number;
@@ -38,12 +33,8 @@ export class BrowserController {
   async start(): Promise<void> {
     if (this.context) return;
     this.browser = await chromium.launch({ headless: true });
-    this.context = await this.browser.newContext({
-      serviceWorkers: "block",
-      acceptDownloads: false
-    });
-    const page = await this.context.newPage();
-    this.registerPage(page);
+    this.context = await this.browser.newContext({ serviceWorkers: "block", acceptDownloads: false });
+    this.registerPage(await this.context.newPage());
   }
 
   async stop(): Promise<void> {
@@ -57,8 +48,7 @@ export class BrowserController {
   async newTab(url?: string): Promise<BrowserTabSnapshot> {
     await this.start();
     if (this.pages.size >= this.maxTabs) throw new Error(`Maximum browser tabs reached (${this.maxTabs})`);
-    const page = await this.context!.newPage();
-    const id = this.registerPage(page);
+    const id = this.registerPage(await this.context!.newPage());
     if (url !== undefined) await this.navigate(id, url);
     return this.snapshot(id);
   }
@@ -73,7 +63,7 @@ export class BrowserController {
   async observe(id: string, screenshot = true): Promise<BrowserObservation> {
     const page = this.getPage(id);
     const result: BrowserObservation = {
-      ...this.snapshot(id),
+      ...await this.snapshot(id),
       text: (await page.locator("body").innerText({ timeout: this.navigationTimeoutMs })).slice(0, 50000)
     };
     if (screenshot) {
@@ -100,7 +90,7 @@ export class BrowserController {
 
   async tabs(): Promise<BrowserTabSnapshot[]> {
     await this.start();
-    return [...this.pages.keys()].map((id) => this.snapshot(id));
+    return Promise.all([...this.pages.keys()].map((id) => this.snapshot(id)));
   }
 
   async closeTab(id: string): Promise<void> {
@@ -121,9 +111,9 @@ export class BrowserController {
     return page;
   }
 
-  private snapshot(id: string): BrowserTabSnapshot {
+  private async snapshot(id: string): Promise<BrowserTabSnapshot> {
     const page = this.getPage(id);
-    return { id, url: page.url(), title: "" };
+    return { id, url: page.url(), title: await page.title().catch(() => "") };
   }
 
   private assertSafeUrl(url: string): void {
