@@ -32,9 +32,7 @@ export class ScreenPrivacyFilter {
 
   filter(observation: ScreenObservation): ScreenObservation | undefined {
     if (this.shouldBlock(observation)) return undefined;
-    return {
-      ...observation,
-      imageDataUrl: undefined
-    };
+    const { imageDataUrl: _imageDataUrl, ...safeObservation } = observation;
+    return safeObservation;
   }
 }
