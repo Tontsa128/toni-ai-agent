@@ -6,6 +6,7 @@ import { GitReadTool } from "../../tools/GitReadTool.js";
 import { TerminalExecutor } from "../sandbox/TerminalExecutor.js";
 import { createWordDocument } from "./WordDocumentTool.js";
 import { browserTools } from "./BrowserTool.js";
+import { WindowsComputerAdapter } from "../../computer/WindowsComputerAdapter.js";
 import type { SandboxPolicy } from "../sandbox/types.js";
 
 const readTextFileTool: ToolDefinition = {
@@ -67,6 +68,41 @@ const runCommandTool = (workspace: string): ToolDefinition => ({
   }
 });
 
+const computerTools = (computer = new WindowsComputerAdapter()): ToolDefinition[] => [
+  {
+    name: "computer_click",
+    description: "Click the Windows desktop at screen coordinates. Human approval is required.",
+    risk: "yellow",
+    async execute(input) {
+      if (typeof input !== "object" || input === null) throw new Error("object input is required");
+      const value = input as { x?: unknown; y?: unknown };
+      if (typeof value.x !== "number" || typeof value.y !== "number") throw new Error("x and y are required");
+      await computer.click(value.x, value.y);
+      return { ok: true, x: value.x, y: value.y };
+    }
+  },
+  {
+    name: "computer_type",
+    description: "Type text into the currently focused Windows application. Human approval is required; credential and authentication-code entry is blocked.",
+    risk: "yellow",
+    async execute(input) {
+      if (typeof input !== "object" || input === null || typeof (input as { text?: unknown }).text !== "string") throw new Error("text is required");
+      await computer.type((input as { text: string }).text);
+      return { ok: true };
+    }
+  },
+  {
+    name: "computer_keypress",
+    description: "Send a bounded non-system key sequence to the focused Windows application. Human approval is required.",
+    risk: "yellow",
+    async execute(input) {
+      if (typeof input !== "object" || input === null || typeof (input as { key?: unknown }).key !== "string") throw new Error("key is required");
+      await computer.keypress((input as { key: string }).key);
+      return { ok: true };
+    }
+  }
+];
+
 export function createDefaultToolRegistry(workspace: string): ToolRegistry {
   const registry = new ToolRegistry();
   registry.register({ ...readTextFileTool, execute: async (input) => {
@@ -77,6 +113,7 @@ export function createDefaultToolRegistry(workspace: string): ToolRegistry {
   registry.register(writeWordDocumentTool(workspace));
   registry.register(runCommandTool(workspace));
   for (const tool of browserTools(workspace)) registry.register(tool);
+  for (const tool of computerTools()) registry.register(tool);
 
   const git = new GitReadTool();
   registry.register({
@@ -105,6 +142,9 @@ export function defaultFunctionToolSpecs(): Array<{ name: string; description: s
     { name: "browser_click", description: "Click an element in a browser tab. Human approval is required.", risk: "yellow", parameters: { type: "object", properties: { tabId: { type: "string" }, selector: { type: "string" } }, required: ["tabId", "selector"], additionalProperties: false } },
     { name: "browser_type", description: "Fill a form field in a browser tab. Human approval is required.", risk: "yellow", parameters: { type: "object", properties: { tabId: { type: "string" }, selector: { type: "string" }, text: { type: "string" } }, required: ["tabId", "selector", "text"], additionalProperties: false } },
     { name: "browser_navigate", description: "Navigate an existing browser tab. Human approval is required.", risk: "yellow", parameters: { type: "object", properties: { tabId: { type: "string" }, url: { type: "string" } }, required: ["tabId", "url"], additionalProperties: false } },
+    { name: "computer_click", description: "Click the Windows desktop at screen coordinates. Human approval is required.", risk: "yellow", parameters: { type: "object", properties: { x: { type: "number" }, y: { type: "number" } }, required: ["x", "y"], additionalProperties: false } },
+    { name: "computer_type", description: "Type text into the focused Windows application. Human approval is required; credential entry is blocked.", risk: "yellow", parameters: { type: "object", properties: { text: { type: "string" } }, required: ["text"], additionalProperties: false } },
+    { name: "computer_keypress", description: "Send a bounded non-system key sequence. Human approval is required.", risk: "yellow", parameters: { type: "object", properties: { key: { type: "string" } }, required: ["key"], additionalProperties: false } },
     { name: "git_read", description: "Read Git status, diff, log, branch, show or remote information without modifying the repository.", risk: "green", parameters: { type: "object", properties: { args: { type: "array", items: { type: "string" } } }, required: ["args"], additionalProperties: false } }
   ];
 }
