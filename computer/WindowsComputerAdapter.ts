@@ -7,6 +7,7 @@ const execFileAsync = promisify(execFile);
 export interface WindowsComputerOptions {
   maxTextLength?: number;
   maxKeypressLength?: number;
+  timeoutMs?: number;
 }
 
 /**
@@ -17,10 +18,12 @@ export interface WindowsComputerOptions {
 export class WindowsComputerAdapter implements ComputerAdapter {
   private readonly maxTextLength: number;
   private readonly maxKeypressLength: number;
+  private readonly timeoutMs: number;
 
   constructor(options: WindowsComputerOptions = {}) {
-    this.maxTextLength = options.maxTextLength ?? 4000;
-    this.maxKeypressLength = options.maxKeypressLength ?? 32;
+    this.maxTextLength = Math.max(1, Math.min(10000, options.maxTextLength ?? 4000));
+    this.maxKeypressLength = Math.max(1, Math.min(64, options.maxKeypressLength ?? 32));
+    this.timeoutMs = Math.max(1000, Math.min(30000, options.timeoutMs ?? 10000));
   }
 
   private assertWindows(): void {
@@ -30,8 +33,8 @@ export class WindowsComputerAdapter implements ComputerAdapter {
   private async powershell(script: string): Promise<string> {
     this.assertWindows();
     const { stdout } = await execFileAsync("powershell.exe", [
-      "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script
-    ], { maxBuffer: 1024 * 1024 });
+      "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script
+    ], { windowsHide: true, timeout: this.timeoutMs, maxBuffer: 2 * 1024 * 1024 });
     return stdout.trim();
   }
 
@@ -99,7 +102,7 @@ export class WindowsComputerAdapter implements ComputerAdapter {
 
 export class ComputerInputPolicy {
   static assertCoordinate(x: number, y: number): void {
-    if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || y < 0 || x > 100000 || y > 100000) {
+    if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || y < 0 || x > 10000 || y > 10000) {
       throw new Error("Invalid screen coordinate");
     }
   }
