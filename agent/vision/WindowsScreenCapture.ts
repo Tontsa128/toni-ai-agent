@@ -6,10 +6,8 @@ import type { ScreenObservation } from "./ScreenObservation.js";
 const execFileAsync = promisify(execFile);
 
 /**
- * Windows capture adapter. PowerShell is invoked without a shell command
- * string; the adapter only writes a temporary PNG and reads it back. OCR and
- * active-window metadata remain separate providers so sensitive data can be
- * excluded before leaving the machine.
+ * Windows capture adapter. The monitor gate is the only supported caller in
+ * the normal agent flow; this provider itself never enables monitoring.
  */
 export class WindowsScreenCapture implements ScreenCaptureProvider {
   async capture(): Promise<ScreenObservation> {
@@ -18,17 +16,14 @@ export class WindowsScreenCapture implements ScreenCaptureProvider {
       "$ErrorActionPreference='Stop'",
       "Add-Type -AssemblyName System.Drawing",
       "Add-Type -AssemblyName System.Windows.Forms",
-      "$b=[System.Windows.Forms.Screen]::PrimaryScreen.Bounds",
+      "$b=[System.Windows.Forms.SystemInformation]::VirtualScreen",
       "$bmp=New-Object System.Drawing.Bitmap $b.Width,$b.Height",
       "$g=[System.Drawing.Graphics]::FromImage($bmp)",
-      "$g.CopyFromScreen($b.Location,[System.Drawing.Point]::Empty,$b.Size)",
+      "$g.CopyFromScreen($b.Left,$b.Top,0,0,$bmp.Size)",
       "$p=[System.IO.Path]::GetTempFileName() + '.png'",
-      "$bmp.Save($p,[System.Drawing.Imaging.ImageFormat]::Png)",
-      "$g.Dispose();$bmp.Dispose()",
-      "[Convert]::ToBase64String([System.IO.File]::ReadAllBytes($p))",
-      "Remove-Item -LiteralPath $p -Force"
+      "try { $bmp.Save($p,[System.Drawing.Imaging.ImageFormat]::Png); [Convert]::ToBase64String([System.IO.File]::ReadAllBytes($p)) } finally { $g.Dispose(); $bmp.Dispose(); if(Test-Path -LiteralPath $p){Remove-Item -LiteralPath $p -Force -ErrorAction SilentlyContinue} }"
     ].join(";");
-    const { stdout } = await execFileAsync("powershell.exe", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script], {
+    const { stdout } = await execFileAsync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], {
       windowsHide: true,
       maxBuffer: 25 * 1024 * 1024,
       timeout: 10000
@@ -37,7 +32,7 @@ export class WindowsScreenCapture implements ScreenCaptureProvider {
     if (!base64) throw new Error("Windows screen capture returned no image");
     return {
       capturedAt: new Date().toISOString(),
-      monitorId: "primary",
+      monitorId: "virtual-screen",
       imageDataUrl: `data:image/png;base64,${base64}`
     };
   }
