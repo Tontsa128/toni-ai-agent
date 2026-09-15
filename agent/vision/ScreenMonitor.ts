@@ -1,23 +1,18 @@
 import type { ScreenObservation } from "./ScreenObservation.js";
 import { ScreenObservationGate } from "./ScreenObservation.js";
 
-export interface ScreenCaptureProvider {
-  capture(): Promise<ScreenObservation>;
-}
+export interface ScreenCaptureProvider { capture(): Promise<ScreenObservation>; }
 
 export interface ScreenMonitorOptions {
   intervalMs?: number;
   onObservation?: (observation: ScreenObservation) => Promise<void> | void;
 }
 
-/**
- * Privacy-first monitor. No timer is started until enable() is called and
- * disable() immediately prevents the next capture from being processed.
- */
+/** Privacy-first monitor: capture starts only after explicit user enable(). */
 export class ScreenMonitor {
   private readonly gate = new ScreenObservationGate();
   private readonly intervalMs: number;
-  private readonly onObservation?: (observation: ScreenObservation) => Promise<void> | void;
+  private readonly onObservation: ((observation: ScreenObservation) => Promise<void> | void) | undefined;
   private timer: ReturnType<typeof setInterval> | undefined;
   private captureInFlight = false;
 
@@ -26,9 +21,7 @@ export class ScreenMonitor {
     this.onObservation = options.onObservation;
   }
 
-  getState() {
-    return this.gate.getState();
-  }
+  getState() { return this.gate.getState(); }
 
   enable(): void {
     if (this.gate.getState() === "on") return;
