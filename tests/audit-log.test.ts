@@ -9,30 +9,9 @@ test("AuditLog appends sanitized lifecycle events", () => {
   const directory = mkdtempSync(join(tmpdir(), "toni-audit-"));
   const filePath = join(directory, "audit.jsonl");
   const log = new AuditLog({ filePath });
-
-  log.append({
-    type: "repair_approval_requested",
-    sessionId: "session-1",
-    attempt: 1,
-    actionId: "action-1",
-    summary: "token=super-secret repair for package"
-  });
-  log.append({
-    type: "repair_approved",
-    sessionId: "session-1",
-    attempt: 1,
-    actionId: "action-1"
-  });
-
+  log.append({ type: "repair_approval_requested", sessionId: "session-1", attempt: 1, actionId: "action-1", summary: "token=super-secret repair for package" });
+  log.append({ type: "repair_approved", sessionId: "session-1", attempt: 1, actionId: "action-1" });
   const lines = readFileSync(filePath, "utf8").trim().split("\n").map((line) => JSON.parse(line) as Record<string, unknown>);
-  const first = lines[0];
-  const second = lines[1];
-  assert.ok(first);
-  assert.ok(second);
-  assert.equal(lines.length, 2);
-  assert.equal(first.type, "repair_approval_requested");
-  assert.equal(first.summary, "token=[REDACTED] repair for package");
-  assert.equal(second.type, "repair_approved");
-  assert.equal(typeof first.eventId, "string");
-  assert.equal(typeof first.timestamp, "string");
+  const first = lines[0]; const second = lines[1];
+  assert.ok(first); assert.ok(second); assert.equal(lines.length, 2); assert.equal(first.type, "repair_approval_requested"); assert.equal(first.summary, "token=[REDACTED] repair for package"); assert.equal(second.type, "repair_approved"); assert.equal(typeof first.eventId, "string"); assert.equal(typeof first.timestamp, "string");
 });
