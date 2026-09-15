@@ -7,6 +7,7 @@ import { attachmentToContent, type AgentContentPart } from "./AgentInput.js";
 import { ScreenContextAssistant } from "../agent/vision/ScreenContextAssistant.js";
 import { ScreenMonitor } from "../agent/vision/ScreenMonitor.js";
 import { ScreenSuggestionDebouncer } from "../agent/vision/ScreenSuggestionDebouncer.js";
+import { ScreenPrivacyFilter } from "../agent/vision/ScreenPrivacyFilter.js";
 import { WindowsScreenCapture } from "../agent/vision/WindowsScreenCapture.js";
 
 const workspace = process.cwd();
@@ -17,29 +18,40 @@ const maxBodyBytes = 30 * 1024 * 1024;
 const maxFileBytes = 20 * 1024 * 1024;
 const screenAssistant = new ScreenContextAssistant();
 const screenSuggestionDebouncer = new ScreenSuggestionDebouncer(60_000);
+const screenPrivacyFilter = new ScreenPrivacyFilter();
+let latestScreenSuggestion: ReturnType<ScreenContextAssistant["analyse"]>;
+let latestScreenCaptureAt: string | undefined;
+let latestScreenPrivacyBlocked = false;
+
 const screenMonitor = process.platform === "win32"
   ? new ScreenMonitor(new WindowsScreenCapture(), {
       intervalMs: Number(process.env.TONI_SCREEN_INTERVAL_MS ?? 5000),
       onObservation: async (observation) => {
-        const candidate = screenAssistant.analyse(observation);
+        const safeObservation = screenPrivacyFilter.filter(observation);
+        if (!safeObservation) {
+          latestScreenSuggestion = undefined;
+          latestScreenCaptureAt = observation.capturedAt;
+          latestScreenPrivacyBlocked = true;
+          return;
+        }
+        latestScreenPrivacyBlocked = false;
+        const candidate = screenAssistant.analyse(safeObservation);
         if (!candidate) {
           latestScreenSuggestion = undefined;
         } else {
           const contextKey = [
-            observation.activeApplication ?? "",
-            observation.activeWindowTitle ?? "",
+            safeObservation.activeApplication ?? "",
+            safeObservation.activeWindowTitle ?? "",
             candidate.kind
           ].join("|");
           if (screenSuggestionDebouncer.shouldShow(candidate, contextKey)) {
             latestScreenSuggestion = candidate;
           }
         }
-        latestScreenCaptureAt = observation.capturedAt;
+        latestScreenCaptureAt = safeObservation.capturedAt;
       }
     })
   : undefined;
-let latestScreenSuggestion: ReturnType<ScreenContextAssistant["analyse"]>;
-let latestScreenCaptureAt: string | undefined;
 
 const server = createServer(async (req, res) => {
   try {
@@ -52,11 +64,13 @@ const server = createServer(async (req, res) => {
         ...session.getState(),
         screenMonitoring: screenMonitor?.getState() ?? "off",
         screenCaptureAt: latestScreenCaptureAt,
+        screenPrivacyBlocked: latestScreenPrivacyBlocked,
         screenSuggestion: latestScreenSuggestion
       });
     }
     if (req.method === "POST" && req.url === "/api/screen/on") {
       if (!screenMonitor) throw new Error("Windows screen monitoring is unavailable on this operating system.");
+      screenSuggestionDebouncer.reset();
       screenMonitor.enable();
       return sendJson(res, 200, { state: screenMonitor.getState() });
     }
@@ -65,6 +79,7 @@ const server = createServer(async (req, res) => {
       screenSuggestionDebouncer.reset();
       latestScreenSuggestion = undefined;
       latestScreenCaptureAt = undefined;
+      latestScreenPrivacyBlocked = false;
       return sendJson(res, 200, { state: "off" });
     }
     if (req.method === "POST" && req.url === "/api/ask") {
