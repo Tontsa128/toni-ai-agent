@@ -4,6 +4,9 @@ import { extname, resolve } from "node:path";
 import { loadPolicy } from "../tools/config.js";
 import { InteractiveSession } from "./InteractiveSession.js";
 import { attachmentToContent, type AgentContentPart } from "./AgentInput.js";
+import { ScreenContextAssistant } from "../agent/vision/ScreenContextAssistant.js";
+import { ScreenMonitor } from "../agent/vision/ScreenMonitor.js";
+import { WindowsScreenCapture } from "../agent/vision/WindowsScreenCapture.js";
 
 const workspace = process.cwd();
 const policy = await loadPolicy(workspace);
@@ -11,6 +14,18 @@ const session = new InteractiveSession({ workspace, policy });
 const port = Number(process.env.TONI_AI_PORT ?? 8787);
 const maxBodyBytes = 30 * 1024 * 1024;
 const maxFileBytes = 20 * 1024 * 1024;
+const screenAssistant = new ScreenContextAssistant();
+const screenMonitor = process.platform === "win32"
+  ? new ScreenMonitor(new WindowsScreenCapture(), {
+      intervalMs: Number(process.env.TONI_SCREEN_INTERVAL_MS ?? 5000),
+      onObservation: async (observation) => {
+        latestScreenSuggestion = screenAssistant.analyse(observation);
+        latestScreenCaptureAt = observation.capturedAt;
+      }
+    })
+  : undefined;
+let latestScreenSuggestion: ReturnType<ScreenContextAssistant["analyse"]>;
+let latestScreenCaptureAt: string | undefined;
 
 const server = createServer(async (req, res) => {
   try {
@@ -18,7 +33,25 @@ const server = createServer(async (req, res) => {
       const html = await readFile(resolve(workspace, "app/public/agent.html"), "utf8");
       return send(res, 200, "text/html; charset=utf-8", html);
     }
-    if (req.method === "GET" && req.url === "/api/status") return sendJson(res, 200, session.getState());
+    if (req.method === "GET" && req.url === "/api/status") {
+      return sendJson(res, 200, {
+        ...session.getState(),
+        screenMonitoring: screenMonitor?.getState() ?? "off",
+        screenCaptureAt: latestScreenCaptureAt,
+        screenSuggestion: latestScreenSuggestion
+      });
+    }
+    if (req.method === "POST" && req.url === "/api/screen/on") {
+      if (!screenMonitor) throw new Error("Windows screen monitoring is unavailable on this operating system.");
+      screenMonitor.enable();
+      return sendJson(res, 200, { state: screenMonitor.getState() });
+    }
+    if (req.method === "POST" && req.url === "/api/screen/off") {
+      screenMonitor?.disable();
+      latestScreenSuggestion = undefined;
+      latestScreenCaptureAt = undefined;
+      return sendJson(res, 200, { state: "off" });
+    }
     if (req.method === "POST" && req.url === "/api/ask") {
       const body = await readRequestBody(req, maxBodyBytes);
       const form = await new Request("http://localhost/api/ask", {
@@ -63,6 +96,7 @@ const server = createServer(async (req, res) => {
 server.listen(port, "127.0.0.1", () => {
   console.log(`Toni AI Agent UI: http://127.0.0.1:${port}`);
   console.log(`Workspace: ${workspace}`);
+  console.log(`Screen monitoring: ${screenMonitor ? "available, OFF by default" : "unavailable on this OS"}`);
 });
 
 function safeMediaType(type: string, filename: string): string {
