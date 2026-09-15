@@ -6,6 +6,7 @@ import { InteractiveSession } from "./InteractiveSession.js";
 import { attachmentToContent, type AgentContentPart } from "./AgentInput.js";
 import { ScreenContextAssistant } from "../agent/vision/ScreenContextAssistant.js";
 import { ScreenMonitor } from "../agent/vision/ScreenMonitor.js";
+import { ScreenSuggestionController } from "../agent/vision/ScreenSuggestionController.js";
 import { ScreenSuggestionDebouncer } from "../agent/vision/ScreenSuggestionDebouncer.js";
 import { ScreenPrivacyFilter } from "../agent/vision/ScreenPrivacyFilter.js";
 import { WindowsScreenCapture } from "../agent/vision/WindowsScreenCapture.js";
@@ -17,9 +18,9 @@ const port = Number(process.env.TONI_AI_PORT ?? 8787);
 const maxBodyBytes = 30 * 1024 * 1024;
 const maxFileBytes = 20 * 1024 * 1024;
 const screenAssistant = new ScreenContextAssistant();
+const screenSuggestionController = new ScreenSuggestionController();
 const screenSuggestionDebouncer = new ScreenSuggestionDebouncer(60_000);
 const screenPrivacyFilter = new ScreenPrivacyFilter();
-let latestScreenSuggestion: ReturnType<ScreenContextAssistant["analyse"]>;
 let latestScreenCaptureAt: string | undefined;
 let latestScreenPrivacyBlocked = false;
 
@@ -29,7 +30,7 @@ const screenMonitor = process.platform === "win32"
       onObservation: async (observation) => {
         const safeObservation = screenPrivacyFilter.filter(observation);
         if (!safeObservation) {
-          latestScreenSuggestion = undefined;
+          screenSuggestionController.clear();
           latestScreenCaptureAt = observation.capturedAt;
           latestScreenPrivacyBlocked = true;
           return;
@@ -37,7 +38,7 @@ const screenMonitor = process.platform === "win32"
         latestScreenPrivacyBlocked = false;
         const candidate = screenAssistant.analyse(safeObservation);
         if (!candidate) {
-          latestScreenSuggestion = undefined;
+          screenSuggestionController.clear();
         } else {
           const contextKey = [
             safeObservation.activeApplication ?? "",
@@ -45,7 +46,7 @@ const screenMonitor = process.platform === "win32"
             candidate.kind
           ].join("|");
           if (screenSuggestionDebouncer.shouldShow(candidate, contextKey)) {
-            latestScreenSuggestion = candidate;
+            screenSuggestionController.publish(candidate);
           }
         }
         latestScreenCaptureAt = safeObservation.capturedAt;
@@ -65,22 +66,31 @@ const server = createServer(async (req, res) => {
         screenMonitoring: screenMonitor?.getState() ?? "off",
         screenCaptureAt: latestScreenCaptureAt,
         screenPrivacyBlocked: latestScreenPrivacyBlocked,
-        screenSuggestion: latestScreenSuggestion
+        screenSuggestion: screenSuggestionController.getState().suggestion,
+        screenSuggestionDecision: screenSuggestionController.getState().decision
       });
     }
     if (req.method === "POST" && req.url === "/api/screen/on") {
       if (!screenMonitor) throw new Error("Windows screen monitoring is unavailable on this operating system.");
       screenSuggestionDebouncer.reset();
+      screenSuggestionController.clear();
+      latestScreenPrivacyBlocked = false;
       screenMonitor.enable();
       return sendJson(res, 200, { state: screenMonitor.getState() });
     }
     if (req.method === "POST" && req.url === "/api/screen/off") {
       screenMonitor?.disable();
       screenSuggestionDebouncer.reset();
-      latestScreenSuggestion = undefined;
+      screenSuggestionController.clear();
       latestScreenCaptureAt = undefined;
       latestScreenPrivacyBlocked = false;
       return sendJson(res, 200, { state: "off" });
+    }
+    if (req.method === "POST" && req.url === "/api/screen/suggestion/accept") {
+      return sendJson(res, 200, screenSuggestionController.accept());
+    }
+    if (req.method === "POST" && req.url === "/api/screen/suggestion/dismiss") {
+      return sendJson(res, 200, screenSuggestionController.dismiss());
     }
     if (req.method === "POST" && req.url === "/api/ask") {
       const body = await readRequestBody(req, maxBodyBytes);
