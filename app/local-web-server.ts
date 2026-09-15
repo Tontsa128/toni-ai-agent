@@ -9,6 +9,8 @@ import { ScreenMonitor } from "../agent/vision/ScreenMonitor.js";
 import { ScreenSuggestionController } from "../agent/vision/ScreenSuggestionController.js";
 import { ScreenSuggestionDebouncer } from "../agent/vision/ScreenSuggestionDebouncer.js";
 import { ScreenPrivacyFilter } from "../agent/vision/ScreenPrivacyFilter.js";
+import { ScreenOcrPipeline } from "../agent/vision/ScreenOcrPipeline.js";
+import { TesseractScreenTextProvider } from "../agent/vision/TesseractScreenTextProvider.js";
 import { WindowsScreenCapture } from "../agent/vision/WindowsScreenCapture.js";
 
 const workspace = process.cwd();
@@ -21,6 +23,7 @@ const screenAssistant = new ScreenContextAssistant();
 const screenSuggestionController = new ScreenSuggestionController();
 const screenSuggestionDebouncer = new ScreenSuggestionDebouncer(60_000);
 const screenPrivacyFilter = new ScreenPrivacyFilter();
+const screenOcrPipeline = new ScreenOcrPipeline(screenPrivacyFilter, process.platform === "win32" ? new TesseractScreenTextProvider({ executable: process.env.TONI_TESSERACT_PATH ?? "tesseract" }) : undefined);
 let latestScreenCaptureAt: string | undefined;
 let latestScreenPrivacyBlocked = false;
 
@@ -28,14 +31,15 @@ const screenMonitor = process.platform === "win32"
   ? new ScreenMonitor(new WindowsScreenCapture(), {
       intervalMs: Number(process.env.TONI_SCREEN_INTERVAL_MS ?? 5000),
       onObservation: async (observation) => {
-        const safeObservation = screenPrivacyFilter.filter(observation);
-        if (!safeObservation) {
+        const processed = await screenOcrPipeline.process(observation);
+        if (!processed.observation) {
           screenSuggestionController.clear();
           latestScreenCaptureAt = observation.capturedAt;
-          latestScreenPrivacyBlocked = true;
+          latestScreenPrivacyBlocked = processed.privacyBlocked;
           return;
         }
         latestScreenPrivacyBlocked = false;
+        const safeObservation = processed.observation;
         const candidate = screenAssistant.analyse(safeObservation);
         if (!candidate) {
           screenSuggestionController.clear();
