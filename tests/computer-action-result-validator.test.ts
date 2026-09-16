@@ -29,10 +29,8 @@ test("post-condition reports a failed observable check", () => {
 });
 
 test("post-condition is inconclusive without OCR text when text is required", () => {
-  const result = validator.validatePostCondition(
-    { ...safeObservation, visibleText: undefined },
-    { visibleTextIncludes: ["build succeeded"] }
-  );
+  const { visibleText: _visibleText, ...withoutVisibleText } = safeObservation;
+  const result = validator.validatePostCondition(withoutVisibleText, { visibleTextIncludes: ["build succeeded"] });
   assert.equal(result.status, "inconclusive");
 });
 
