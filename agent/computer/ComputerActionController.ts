@@ -14,6 +14,7 @@ export interface ComputerActionProposal {
   observationCapturedAt: string;
   activeWindowTitle?: string;
   activeApplication?: string;
+  actionId?: string;
 }
 
 export interface ComputerActionExecution {
@@ -35,13 +36,15 @@ export class ComputerActionController {
     if (observation.imageDataUrl) {
       return { result: { ok: false, approved: false, output: { error: "Computer actions require a privacy-filtered observation." } } };
     }
+    const result = await this.executor.execute(this.toToolCall(action));
+    const actionId = extractActionId(result);
     const proposal: ComputerActionProposal = {
       action: { ...action },
       observationCapturedAt: observation.capturedAt,
       ...(observation.activeWindowTitle ? { activeWindowTitle: observation.activeWindowTitle } : {}),
-      ...(observation.activeApplication ? { activeApplication: observation.activeApplication } : {})
+      ...(observation.activeApplication ? { activeApplication: observation.activeApplication } : {}),
+      ...(actionId ? { actionId } : {})
     };
-    const result = await this.executor.execute(this.toToolCall(action));
     return { proposal, result };
   }
 
@@ -61,4 +64,10 @@ export class ComputerActionController {
       case "keypress": return { callId: randomUUID(), name: "computer_keypress", argumentsJson: JSON.stringify({ key: action.key }) };
     }
   }
+}
+
+function extractActionId(result: ToolExecutionResult): string | undefined {
+  if (!result.output || typeof result.output !== "object") return undefined;
+  const value = (result.output as Record<string, unknown>).actionId;
+  return typeof value === "string" && value.length > 0 ? value : undefined;
 }
