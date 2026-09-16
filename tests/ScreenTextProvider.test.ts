@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { enrichScreenObservation, type ScreenTextProvider } from "../agent/vision/ScreenTextProvider.js";
+import { TesseractScreenTextProvider } from "../agent/vision/TesseractScreenTextProvider.js";
 
 const base = {
   capturedAt: new Date().toISOString(),
@@ -27,4 +28,11 @@ test("enrichScreenObservation adds OCR text without changing capture metadata", 
 test("enrichScreenObservation leaves observation unchanged when OCR has no text", async () => {
   const result = await enrichScreenObservation(base, new FakeTextProvider("   "));
   assert.deepEqual(result, base);
+});
+
+test("Tesseract provider reports unavailable when the executable is missing", async () => {
+  const provider = new TesseractScreenTextProvider({ executable: "toni-ai-test-missing-tesseract-executable" });
+  assert.equal(await provider.isAvailable(), false);
+  assert.deepEqual(await provider.getStatus(), { provider: "tesseract", available: false });
+  assert.equal(await provider.extractText(base), undefined);
 });
