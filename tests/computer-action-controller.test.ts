@@ -49,7 +49,7 @@ test("proposal is queued for approval and does not execute immediately", async (
   const result = await controller.proposeAndQueue(observation, { type: "click", x: 100, y: 200 });
 
   assert.ok(result.proposal);
-  assert.equal(result.result.output.status, "approval_required");
+  assert.equal((result.result.output as { status: string }).status, "approval_required");
   assert.equal(executed.length, 0);
   assert.equal(orchestrator.approvals.list().length, 1);
 });
