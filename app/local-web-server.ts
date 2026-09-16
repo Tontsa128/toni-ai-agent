@@ -23,7 +23,10 @@ const screenAssistant = new ScreenContextAssistant();
 const screenSuggestionController = new ScreenSuggestionController();
 const screenSuggestionDebouncer = new ScreenSuggestionDebouncer(60_000);
 const screenPrivacyFilter = new ScreenPrivacyFilter();
-const screenOcrPipeline = new ScreenOcrPipeline(screenPrivacyFilter, process.platform === "win32" ? new TesseractScreenTextProvider({ executable: process.env.TONI_TESSERACT_PATH ?? "tesseract" }) : undefined);
+const screenOcrProvider = process.platform === "win32"
+  ? new TesseractScreenTextProvider({ executable: process.env.TONI_TESSERACT_PATH ?? "tesseract" })
+  : undefined;
+const screenOcrPipeline = new ScreenOcrPipeline(screenPrivacyFilter, screenOcrProvider);
 let latestScreenCaptureAt: string | undefined;
 let latestScreenPrivacyBlocked = false;
 
@@ -65,9 +68,13 @@ const server = createServer(async (req, res) => {
       return send(res, 200, "text/html; charset=utf-8", html);
     }
     if (req.method === "GET" && req.url === "/api/status") {
+      const screenOcr = screenOcrProvider
+        ? { enabled: true, ...(await screenOcrProvider.getStatus()) }
+        : { enabled: false, provider: "none" as const, available: false };
       return sendJson(res, 200, {
         ...session.getState(),
         screenMonitoring: screenMonitor?.getState() ?? "off",
+        screenOcr,
         screenCaptureAt: latestScreenCaptureAt,
         screenPrivacyBlocked: latestScreenPrivacyBlocked,
         screenSuggestion: screenSuggestionController.getState().suggestion,
