@@ -36,7 +36,7 @@ export class ComputerActionLifecycle {
   recordExecution(sessionId: string, actionId: string, execution: ToolExecutionResult): ComputerActionValidation {
     const validation = this.validator.validate(execution);
     this.audit.append({
-      type: validation.status === "accepted" ? "computer_action_executed" : "computer_action_verification_failed",
+      type: validation.status === "accepted" ? "computer_action_executed" : "computer_action_execution_failed",
       sessionId,
       actionId,
       summary: "Computer action execution validated",
