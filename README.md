@@ -46,6 +46,16 @@ Encrypted Project Memory + Audit
 - research source contracts, bounded HTTP retrieval and OpenAI web-search adapter
 - multi-agent task coordinator
 - Windows bootstrap script
+- privacy-first Windows screen monitoring with foreground window metadata
+- optional local Tesseract OCR with cached availability detection
+- screen privacy filtering before and after OCR
+- proactive screen-context suggestions with explicit accept/dismiss decisions
+
+## Screen vision and privacy
+
+Screen monitoring is **OFF by default** and remains under explicit user control. The Windows flow captures the screen together with foreground-window metadata, blocks credential/payment/login/private contexts before OCR, optionally performs local Tesseract OCR, checks OCR text for secret-like signals, and strips the raw screenshot before downstream context analysis.
+
+`TONI_TESSERACT_PATH` can override the local Tesseract executable. `/api/status` reports whether the configured OCR provider is available. See `docs/vision-architecture.md` for the full flow and limitations.
 
 ## Safety model
 
@@ -102,6 +112,7 @@ npm start -- "Tarkista projektin tila"
 12. Self-debugging closed loop — implemented as bounded policy
 13. Persistent encrypted memory and audit storage — implemented
 14. Windows bootstrap — implemented
-15. CI/integration verification and final end-to-end validation — in progress
+15. Privacy-first screen monitoring and local OCR — implemented as an application-level feature
+16. CI/integration verification and final end-to-end validation — in progress
 
 See the phase documents in `docs/` for implementation rules.
