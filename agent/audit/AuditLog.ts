@@ -9,7 +9,15 @@ export type AuditEventType =
   | "repair_approved"
   | "repair_rejected"
   | "repair_succeeded"
-  | "repair_failed";
+  | "repair_failed"
+  | "computer_action_proposed"
+  | "computer_action_approval_requested"
+  | "computer_action_approved"
+  | "computer_action_rejected"
+  | "computer_action_executed"
+  | "computer_action_verification_confirmed"
+  | "computer_action_verification_failed"
+  | "computer_action_verification_inconclusive";
 
 export interface AuditEvent {
   eventId: string;
@@ -24,7 +32,7 @@ export interface AuditEvent {
 
 export interface AuditLogOptions { filePath: string; }
 
-/** Small append-only audit sink. It records decisions/results, never raw model or command output. */
+/** Append-only audit sink for repair and supervised computer-action lifecycle events. */
 export class AuditLog {
   constructor(private readonly options: AuditLogOptions) {}
 
