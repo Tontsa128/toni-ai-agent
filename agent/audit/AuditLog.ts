@@ -1,4 +1,5 @@
-import { appendFileSync, mkdirSync } from "node:fs";
+import { appendFileSync, chmodSync, mkdirSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import { dirname } from "node:path";
 
 const MAX_TEXT = 1000;
@@ -15,6 +16,7 @@ export type AuditEventType =
   | "computer_action_approved"
   | "computer_action_rejected"
   | "computer_action_executed"
+  | "computer_action_execution_failed"
   | "computer_action_verification_confirmed"
   | "computer_action_verification_failed"
   | "computer_action_verification_inconclusive";
@@ -38,7 +40,7 @@ export class AuditLog {
 
   append(event: Omit<AuditEvent, "eventId" | "timestamp">): AuditEvent {
     const sanitized: AuditEvent = {
-      eventId: cryptoRandomId(),
+      eventId: randomUUID(),
       timestamp: new Date().toISOString(),
       type: event.type,
       sessionId: this.safeText(event.sessionId)
@@ -50,6 +52,7 @@ export class AuditLog {
 
     mkdirSync(dirname(this.options.filePath), { recursive: true });
     appendFileSync(this.options.filePath, `${JSON.stringify(sanitized)}\n`, { encoding: "utf8", mode: 0o600 });
+    chmodSync(this.options.filePath, 0o600);
     return sanitized;
   }
 
@@ -60,9 +63,4 @@ export class AuditLog {
       .replace(/bearer\s+[A-Za-z0-9._-]+/gi, "Bearer [REDACTED]")
       .slice(0, MAX_TEXT);
   }
-}
-
-function cryptoRandomId(): string {
-  const random = Math.random().toString(36).slice(2);
-  return `audit-${Date.now().toString(36)}-${random}`;
 }
