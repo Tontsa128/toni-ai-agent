@@ -1,6 +1,7 @@
+import { randomUUID } from "node:crypto";
 import type { ScreenObservation } from "../vision/ScreenObservation.js";
 import { SupervisedToolExecutor } from "../core/SupervisedToolExecutor.js";
-import type { ToolExecutionResult } from "../providers/OpenAIToolLoop.js";
+import type { ToolExecutionContext, ToolExecutionResult } from "../providers/OpenAIToolLoop.js";
 
 export type ComputerActionRequest =
   | { type: "click"; x: number; y: number }
@@ -43,7 +44,8 @@ export class ComputerActionController {
       ...(observation.activeApplication ? { activeApplication: observation.activeApplication } : {})
     };
 
-    const result = await this.executor.execute(this.toToolCall(action));
+    const call = this.toToolCall(action);
+    const result = await this.executor.execute(call);
     return { proposal, result };
   }
 
@@ -55,14 +57,14 @@ export class ComputerActionController {
     this.executor.reject(actionId);
   }
 
-  private toToolCall(action: ComputerActionRequest) {
+  private toToolCall(action: ComputerActionRequest): ToolExecutionContext {
     switch (action.type) {
       case "click":
-        return { name: "computer_click", argumentsJson: JSON.stringify({ x: action.x, y: action.y }) };
+        return { callId: randomUUID(), name: "computer_click", argumentsJson: JSON.stringify({ x: action.x, y: action.y }) };
       case "type":
-        return { name: "computer_type", argumentsJson: JSON.stringify({ text: action.text }) };
+        return { callId: randomUUID(), name: "computer_type", argumentsJson: JSON.stringify({ text: action.text }) };
       case "keypress":
-        return { name: "computer_keypress", argumentsJson: JSON.stringify({ key: action.key }) };
+        return { callId: randomUUID(), name: "computer_keypress", argumentsJson: JSON.stringify({ key: action.key }) };
     }
   }
 }
