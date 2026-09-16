@@ -50,6 +50,12 @@ Suggestion / human decision
 
 The Windows implementation uses an optional local Tesseract executable. The executable defaults to `tesseract` and can be overridden with `TONI_TESSERACT_PATH`.
 
+OCR is enabled by default on Windows when the screen feature is used, but it can be explicitly disabled with:
+
+```text
+TONI_SCREEN_OCR_ENABLED=0
+```
+
 Availability is probed once and cached. `/api/status` reports:
 
 ```json
