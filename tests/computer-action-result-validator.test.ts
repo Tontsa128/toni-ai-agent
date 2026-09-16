@@ -48,3 +48,18 @@ test("empty expectations never count as confirmation", () => {
   const result = validator.validatePostCondition(safeObservation, {});
   assert.equal(result.status, "inconclusive");
 });
+
+test("post-condition can require text to be absent", () => {
+  const result = validator.validatePostCondition(safeObservation, {
+    visibleTextExcludes: ["Build failed", "Permission denied"]
+  });
+  assert.equal(result.status, "confirmed");
+});
+
+test("forbidden text prevents confirmation", () => {
+  const result = validator.validatePostCondition(
+    { ...safeObservation, visibleText: "Build succeeded — Permission denied" },
+    { visibleTextIncludes: ["Build succeeded"], visibleTextExcludes: ["Permission denied"] }
+  );
+  assert.equal(result.status, "not_confirmed");
+});
