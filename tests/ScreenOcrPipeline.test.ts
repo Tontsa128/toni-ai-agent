@@ -21,6 +21,14 @@ class FakeProvider implements ScreenTextProvider {
   }
 }
 
+class FailingProvider implements ScreenTextProvider {
+  public calls = 0;
+  async extractText(): Promise<string | undefined> {
+    this.calls += 1;
+    throw new Error("OCR engine unavailable");
+  }
+}
+
 test("OCR pipeline blocks credential windows before OCR", async () => {
   const provider = new FakeProvider("should-not-be-read");
   const pipeline = new ScreenOcrPipeline(new ScreenPrivacyFilter(), provider);
@@ -46,4 +54,14 @@ test("OCR text containing a privacy signal is blocked after OCR", async () => {
   const result = await pipeline.process(observation);
   assert.equal(result.privacyBlocked, true);
   assert.equal(result.observation, undefined);
+});
+
+test("OCR provider failures fail closed without exposing the raw image", async () => {
+  const provider = new FailingProvider();
+  const pipeline = new ScreenOcrPipeline(new ScreenPrivacyFilter(), provider);
+  const result = await pipeline.process(observation);
+  assert.equal(result.privacyBlocked, false);
+  assert.equal(result.observation?.visibleText, undefined);
+  assert.equal("imageDataUrl" in (result.observation ?? {}), false);
+  assert.equal(provider.calls, 1);
 });
