@@ -62,8 +62,9 @@ test("approved proposal resumes through the supervised executor", async () => {
   const actionId = String((queued.result.output as { actionId: string }).actionId);
   const resumed = await controller.approve(actionId);
 
-  assert.equal(resumed.ok, true);
-  assert.equal(resumed.approved, true);
+  assert.equal(resumed.result.ok, true);
+  assert.equal(resumed.result.approved, true);
+  assert.equal(resumed.validation.status, "accepted");
   assert.equal(executed.length, 1);
 });
 
