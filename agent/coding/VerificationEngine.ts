@@ -1,4 +1,5 @@
 import type { SelfDebugger, DebugFailure, RepairPlan } from "../debug/SelfDebugger.js";
+import type { TerminalExecutor } from "../sandbox/TerminalExecutor.js";
 
 export interface VerificationCommand {
   name: "check" | "test" | "build";
@@ -14,6 +15,7 @@ export interface VerificationStepResult {
   stdout?: string;
   stderr?: string;
   reason?: string;
+  blocked?: boolean;
 }
 
 export interface VerificationResult {
@@ -44,6 +46,30 @@ export class VerificationEngine {
     private readonly run: VerificationRunner,
     private readonly debuggerPolicy?: Pick<SelfDebugger, "analyse">
   ) {}
+
+  /** Bind verification to the same bounded local executor used by the agent. */
+  static fromTerminalExecutor(
+    scripts: Record<string, string>,
+    executor: Pick<TerminalExecutor, "run">,
+    cwd: string,
+    debuggerPolicy?: Pick<SelfDebugger, "analyse">
+  ): VerificationEngine {
+    return new VerificationEngine(
+      scripts,
+      async (command) => {
+        const result = await executor.run({ command, cwd });
+        return {
+          ok: result.ok,
+          exitCode: result.exitCode,
+          stdout: result.stdout,
+          stderr: result.stderr,
+          blocked: result.blocked,
+          ...(result.reason === undefined ? {} : { reason: result.reason })
+        };
+      },
+      debuggerPolicy
+    );
+  }
 
   availableCommands(): VerificationCommand[] {
     const candidates: VerificationCommand[] = [];
@@ -79,9 +105,10 @@ export class VerificationEngine {
         skipped: false,
         exitCode: result.exitCode,
         stdout: result.stdout,
-        stderr: result.stderr
+        stderr: result.stderr,
+        ...(result.reason === undefined ? {} : { reason: result.reason }),
+        ...(result.blocked === undefined ? {} : { blocked: result.blocked })
       };
-      if (result.reason !== undefined) step.reason = result.reason;
       steps.push(step);
 
       if (!result.ok) {
