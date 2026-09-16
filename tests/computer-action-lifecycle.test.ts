@@ -30,7 +30,7 @@ test("lifecycle records proposal, execution and confirmed verification", () => {
   const lifecycle = new ComputerActionLifecycle(new ComputerActionResultValidator(), audit as never);
   const proposal = {
     actionId: "action-1",
-    action: { type: "click", x: 10, y: 20 },
+    action: { type: "click" as const, x: 10, y: 20 },
     observationCapturedAt: observation.capturedAt
   };
 
@@ -50,7 +50,8 @@ test("lifecycle records proposal, execution and confirmed verification", () => {
 test("lifecycle records inconclusive verification when OCR is unavailable", () => {
   const audit = new MemoryAudit();
   const lifecycle = new ComputerActionLifecycle(new ComputerActionResultValidator(), audit as never);
-  const post = lifecycle.recordPostCondition("session-2", "action-2", { ...observation, visibleText: undefined }, { visibleTextIncludes: ["done"] });
+  const { visibleText: _visibleText, ...withoutVisibleText } = observation;
+  const post = lifecycle.recordPostCondition("session-2", "action-2", withoutVisibleText, { visibleTextIncludes: ["done"] });
   assert.equal(post.status, "inconclusive");
   assert.equal(audit.events.at(-1)?.type, "computer_action_verification_inconclusive");
 });
