@@ -14,11 +14,16 @@ export interface TesseractScreenTextProviderOptions {
   maxOutputBytes?: number;
 }
 
-/** Optional local OCR adapter. It never enables screen monitoring itself. */
+export interface ScreenOcrProviderStatus {
+  provider: "tesseract";
+  available: boolean;
+}
+
 export class TesseractScreenTextProvider implements ScreenTextProvider {
   private readonly executable: string;
   private readonly timeoutMs: number;
   private readonly maxOutputBytes: number;
+  private availabilityPromise?: Promise<boolean>;
 
   constructor(options: TesseractScreenTextProviderOptions = {}) {
     this.executable = options.executable ?? "tesseract";
@@ -26,7 +31,18 @@ export class TesseractScreenTextProvider implements ScreenTextProvider {
     this.maxOutputBytes = Math.max(1024, options.maxOutputBytes ?? 256 * 1024);
   }
 
+  async isAvailable(): Promise<boolean> {
+    this.availabilityPromise ??= this.probeAvailability();
+    return this.availabilityPromise;
+  }
+
+  async getStatus(): Promise<ScreenOcrProviderStatus> {
+    return { provider: "tesseract", available: await this.isAvailable() };
+  }
+
   async extractText(observation: ScreenObservation): Promise<string | undefined> {
+    if (!(await this.isAvailable())) return undefined;
+
     const imageDataUrl = observation.imageDataUrl;
     if (!imageDataUrl?.startsWith("data:image/")) return undefined;
 
@@ -47,11 +63,23 @@ export class TesseractScreenTextProvider implements ScreenTextProvider {
       const text = stdout.trim();
       return text || undefined;
     } catch {
-      // OCR is an optional enrichment stage. Missing Tesseract or an OCR failure
-      // must never break screen monitoring or the rest of the agent.
       return undefined;
     } finally {
       await fs.rm(filePath, { force: true }).catch(() => undefined);
+    }
+  }
+
+  private async probeAvailability(): Promise<boolean> {
+    try {
+      await execFileAsync(this.executable, ["--version"], {
+        windowsHide: true,
+        shell: false,
+        timeout: Math.min(this.timeoutMs, 3000),
+        maxBuffer: 16 * 1024
+      });
+      return true;
+    } catch {
+      return false;
     }
   }
 }
