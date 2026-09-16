@@ -1,15 +1,28 @@
 import type { ToolExecutionResult } from "../providers/OpenAIToolLoop.js";
+import type { ScreenObservation } from "../vision/ScreenObservation.js";
 
 export type ComputerValidationStatus = "accepted" | "failed";
+export type PostConditionStatus = "confirmed" | "not_confirmed" | "inconclusive";
 
 export interface ComputerActionValidation {
   status: ComputerValidationStatus;
   reason: string;
 }
 
+export interface ComputerPostConditionExpectation {
+  activeWindowTitleIncludes?: string;
+  activeApplicationIncludes?: string;
+  visibleTextIncludes?: string[];
+}
+
+export interface ComputerPostConditionValidation {
+  status: PostConditionStatus;
+  reason: string;
+}
+
 /**
- * Validates the supervisor/adapter result before the computer action is reported as successful.
- * Visual post-condition checking belongs to a later observation pass and is never inferred here.
+ * Validates supervisor/adapter execution separately from visual post-condition checks.
+ * A successful adapter result never implies that the requested UI state actually changed.
  */
 export class ComputerActionResultValidator {
   validate(result: ToolExecutionResult): ComputerActionValidation {
@@ -17,5 +30,41 @@ export class ComputerActionResultValidator {
     if (result.approved !== true) return { status: "failed", reason: "Computer execution was not explicitly approved." };
     if (result.output === undefined || result.output === null) return { status: "failed", reason: "Computer adapter returned no execution result." };
     return { status: "accepted", reason: "Computer adapter execution result passed structural validation." };
+  }
+
+  validatePostCondition(
+    observation: ScreenObservation,
+    expectation: ComputerPostConditionExpectation
+  ): ComputerPostConditionValidation {
+    if (observation.imageDataUrl) {
+      return { status: "inconclusive", reason: "Raw screen observations must be privacy-filtered before post-condition validation." };
+    }
+
+    const checks: boolean[] = [];
+    if (expectation.activeWindowTitleIncludes !== undefined) {
+      const title = observation.activeWindowTitle?.toLocaleLowerCase("fi-FI");
+      checks.push(title?.includes(expectation.activeWindowTitleIncludes.toLocaleLowerCase("fi-FI")) === true);
+    }
+    if (expectation.activeApplicationIncludes !== undefined) {
+      const app = observation.activeApplication?.toLocaleLowerCase("fi-FI");
+      checks.push(app?.includes(expectation.activeApplicationIncludes.toLocaleLowerCase("fi-FI")) === true);
+    }
+    if (expectation.visibleTextIncludes !== undefined) {
+      const text = observation.visibleText?.toLocaleLowerCase("fi-FI");
+      if (text === undefined) {
+        return { status: "inconclusive", reason: "Post-condition requires OCR text, but no visible text is available." };
+      }
+      for (const expected of expectation.visibleTextIncludes) {
+        checks.push(text.includes(expected.toLocaleLowerCase("fi-FI")));
+      }
+    }
+
+    if (checks.length === 0) {
+      return { status: "inconclusive", reason: "No observable post-condition was supplied." };
+    }
+    if (checks.every(Boolean)) {
+      return { status: "confirmed", reason: "The new screen observation satisfies all supplied post-condition checks." };
+    }
+    return { status: "not_confirmed", reason: "The new screen observation does not satisfy all supplied post-condition checks." };
   }
 }
