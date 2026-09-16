@@ -1,7 +1,12 @@
 import type { AuditLog } from "../audit/AuditLog.js";
 import type { ScreenObservation } from "../vision/ScreenObservation.js";
-import type { ComputerActionRequest, ComputerActionProposal } from "./ComputerActionController.js";
-import type { ComputerActionResultValidator, ComputerPostConditionExpectation, ComputerPostConditionValidation, ComputerActionValidation } from "./ComputerActionResultValidator.js";
+import type { ComputerActionProposal } from "./ComputerActionController.js";
+import type {
+  ComputerActionResultValidator,
+  ComputerPostConditionExpectation,
+  ComputerPostConditionValidation,
+  ComputerActionValidation
+} from "./ComputerActionResultValidator.js";
 import type { ToolExecutionResult } from "../providers/OpenAIToolLoop.js";
 
 export interface ComputerActionLifecycleResult {
@@ -11,7 +16,7 @@ export interface ComputerActionLifecycleResult {
   postCondition?: ComputerPostConditionValidation;
 }
 
-/** Coordinates the deterministic Computer Action lifecycle without executing anything implicitly. */
+/** Records the deterministic Computer Action lifecycle; it never executes actions implicitly. */
 export class ComputerActionLifecycle {
   constructor(
     private readonly validator: ComputerActionResultValidator,
@@ -30,7 +35,7 @@ export class ComputerActionLifecycle {
   recordExecution(sessionId: string, actionId: string, execution: ToolExecutionResult): ComputerActionValidation {
     const validation = this.validator.validate(execution);
     this.audit.append({
-      type: validation.status === "accepted" ? "computer_action_succeeded" : "computer_action_failed",
+      type: validation.status === "accepted" ? "computer_action_executed" : "computer_action_verification_failed",
       sessionId,
       actionId,
       summary: "Computer action execution validated",
@@ -46,8 +51,13 @@ export class ComputerActionLifecycle {
     expectation: ComputerPostConditionExpectation
   ): ComputerPostConditionValidation {
     const validation = this.validator.validatePostCondition(observation, expectation);
+    const type = validation.status === "confirmed"
+      ? "computer_action_verification_confirmed"
+      : validation.status === "not_confirmed"
+        ? "computer_action_verification_failed"
+        : "computer_action_verification_inconclusive";
     this.audit.append({
-      type: "computer_action_postcondition_checked",
+      type,
       sessionId,
       actionId,
       summary: `Computer post-condition: ${validation.status}`,
