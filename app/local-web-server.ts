@@ -23,8 +23,11 @@ const screenAssistant = new ScreenContextAssistant();
 const screenSuggestionController = new ScreenSuggestionController();
 const screenSuggestionDebouncer = new ScreenSuggestionDebouncer(60_000);
 const screenPrivacyFilter = new ScreenPrivacyFilter();
-const screenOcrProvider = process.platform === "win32"
-  ? new TesseractScreenTextProvider({ executable: process.env.TONI_TESSERACT_PATH ?? "tesseract" })
+const screenOcrEnabled = process.platform === "win32" && process.env.TONI_SCREEN_OCR_ENABLED !== "0";
+const screenOcrProvider = screenOcrEnabled
+  ? new TesseractScreenTextProvider({
+      executable: process.env.TONI_TESSERACT_PATH ?? "tesseract"
+    })
   : undefined;
 const screenOcrPipeline = new ScreenOcrPipeline(screenPrivacyFilter, screenOcrProvider);
 let latestScreenCaptureAt: string | undefined;
