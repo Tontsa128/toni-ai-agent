@@ -24,12 +24,13 @@ export class ComputerActionLifecycle {
   ) {}
 
   recordProposal(proposal: ComputerActionProposal, sessionId: string): void {
-    this.audit.append({
+    const event: Parameters<AuditLog["append"]>[0] = {
       type: "computer_action_proposed",
       sessionId,
-      actionId: proposal.actionId,
       summary: `Computer action proposed: ${proposal.action.type}`
-    });
+    };
+    if (proposal.actionId !== undefined) event.actionId = proposal.actionId;
+    this.audit.append(event);
   }
 
   recordExecution(sessionId: string, actionId: string, execution: ToolExecutionResult): ComputerActionValidation {
