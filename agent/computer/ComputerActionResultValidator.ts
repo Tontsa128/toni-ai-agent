@@ -13,6 +13,7 @@ export interface ComputerPostConditionExpectation {
   activeWindowTitleIncludes?: string;
   activeApplicationIncludes?: string;
   visibleTextIncludes?: string[];
+  visibleTextExcludes?: string[];
 }
 
 export interface ComputerPostConditionValidation {
@@ -49,13 +50,21 @@ export class ComputerActionResultValidator {
       const app = observation.activeApplication?.toLocaleLowerCase("fi-FI");
       checks.push(app?.includes(expectation.activeApplicationIncludes.toLocaleLowerCase("fi-FI")) === true);
     }
+    const text = observation.visibleText?.toLocaleLowerCase("fi-FI");
     if (expectation.visibleTextIncludes !== undefined) {
-      const text = observation.visibleText?.toLocaleLowerCase("fi-FI");
       if (text === undefined) {
         return { status: "inconclusive", reason: "Post-condition requires OCR text, but no visible text is available." };
       }
       for (const expected of expectation.visibleTextIncludes) {
         checks.push(text.includes(expected.toLocaleLowerCase("fi-FI")));
+      }
+    }
+    if (expectation.visibleTextExcludes !== undefined) {
+      if (text === undefined) {
+        return { status: "inconclusive", reason: "Post-condition requires OCR text, but no visible text is available." };
+      }
+      for (const forbidden of expectation.visibleTextExcludes) {
+        checks.push(!text.includes(forbidden.toLocaleLowerCase("fi-FI")));
       }
     }
 
