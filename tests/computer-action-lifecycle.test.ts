@@ -31,7 +31,7 @@ test("lifecycle records proposal, execution and confirmed verification", () => {
   const proposal = {
     actionId: "action-1",
     action: { type: "click" as const, x: 10, y: 20 },
-    observationCapturedAt: observation.capturedAt
+    observationCapturedAt: new Date(Date.now() - 1000).toISOString()
   };
 
   lifecycle.recordProposal(proposal, "session-1");
@@ -53,5 +53,23 @@ test("lifecycle records inconclusive verification when OCR is unavailable", () =
   const { visibleText: _visibleText, ...withoutVisibleText } = observation;
   const post = lifecycle.recordPostCondition("session-2", "action-2", withoutVisibleText, { visibleTextIncludes: ["done"] });
   assert.equal(post.status, "inconclusive");
+  assert.equal(audit.events.at(-1)?.type, "computer_action_verification_inconclusive");
+});
+
+test("lifecycle rejects reuse of the pre-action observation", () => {
+  const audit = new MemoryAudit();
+  const lifecycle = new ComputerActionLifecycle(new ComputerActionResultValidator(), audit as never);
+  const baseline = new Date(Date.now() - 1000).toISOString();
+  const staleObservation = { ...observation, capturedAt: baseline };
+  lifecycle.recordProposal({
+    actionId: "action-3",
+    action: { type: "click" as const, x: 1, y: 2 },
+    observationCapturedAt: baseline
+  }, "session-3");
+
+  const post = lifecycle.recordPostCondition("session-3", "action-3", staleObservation, { visibleTextIncludes: ["build succeeded"] });
+
+  assert.equal(post.status, "inconclusive");
+  assert.match(post.reason, /not captured after/i);
   assert.equal(audit.events.at(-1)?.type, "computer_action_verification_inconclusive");
 });
