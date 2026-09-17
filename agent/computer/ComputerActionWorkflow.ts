@@ -11,6 +11,7 @@ export interface ScreenObservationProvider {
 export interface ComputerActionWorkflowQueued {
   proposal: ComputerActionProposal;
   queuedResult: ComputerActionExecution["result"];
+  sessionId: string;
 }
 
 export interface ComputerActionWorkflowExecution {
@@ -37,10 +38,16 @@ export class ComputerActionWorkflow {
     sessionId: string
   ): Promise<ComputerActionWorkflowQueued> {
     const queued = await this.controller.proposeAndQueue(observation, action);
-    if (!queued.proposal?.actionId) throw new Error("Computer action was not queued for supervised approval.");
+    if (!queued.proposal?.actionId) {
+      throw new Error("Computer action was not queued for supervised approval.");
+    }
     this.lifecycle.recordProposal(queued.proposal, sessionId);
     this.lifecycle.recordApprovalRequested(sessionId, queued.proposal.actionId);
-    const result = { proposal: queued.proposal, queuedResult: queued.result };
+    const result: ComputerActionWorkflowQueued = {
+      proposal: queued.proposal,
+      queuedResult: queued.result,
+      sessionId
+    };
     this.queuedActions.set(queued.proposal.actionId, result);
     return result;
   }
@@ -50,10 +57,12 @@ export class ComputerActionWorkflow {
     sessionId: string,
     expectation?: ComputerPostConditionExpectation
   ): Promise<ComputerActionWorkflowExecution> {
-    const queued = this.requireQueued(actionId);
+    const queued = this.requireQueued(actionId, sessionId);
     const execution = await this.controller.approve(actionId);
     if (execution.result.approved === true) this.lifecycle.recordApproval(sessionId, actionId);
     const validation = this.lifecycle.recordExecution(sessionId, actionId, execution.result);
+    this.queuedActions.delete(actionId);
+
     if (validation.status !== "accepted") return { queued, execution, verificationAttempts: 0 };
     if (expectation === undefined) return { queued, execution, verificationAttempts: 0 };
 
@@ -70,15 +79,16 @@ export class ComputerActionWorkflow {
   }
 
   reject(actionId: string, sessionId: string): void {
-    this.requireQueued(actionId);
+    this.requireQueued(actionId, sessionId);
     this.controller.reject(actionId);
     this.lifecycle.recordRejection(sessionId, actionId);
     this.queuedActions.delete(actionId);
   }
 
-  private requireQueued(actionId: string): ComputerActionWorkflowQueued {
+  private requireQueued(actionId: string, sessionId: string): ComputerActionWorkflowQueued {
     const queued = this.queuedActions.get(actionId);
     if (!queued) throw new Error(`Unknown computer action: ${actionId}`);
+    if (queued.sessionId !== sessionId) throw new Error(`Computer action belongs to another session: ${actionId}`);
     return queued;
   }
 }
