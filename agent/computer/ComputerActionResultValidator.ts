@@ -14,6 +14,8 @@ export interface ComputerPostConditionExpectation {
   activeApplicationIncludes?: string;
   visibleTextIncludes?: string[];
   visibleTextExcludes?: string[];
+  /** When supplied, the observation must have been captured strictly after the action baseline. */
+  observationCapturedAfter?: string;
 }
 
 export interface ComputerPostConditionValidation {
@@ -41,6 +43,17 @@ export class ComputerActionResultValidator {
       return { status: "inconclusive", reason: "Raw screen observations must be privacy-filtered before post-condition validation." };
     }
 
+    if (expectation.observationCapturedAfter !== undefined) {
+      const baseline = Date.parse(expectation.observationCapturedAfter);
+      const captured = Date.parse(observation.capturedAt);
+      if (!Number.isFinite(baseline) || !Number.isFinite(captured)) {
+        return { status: "inconclusive", reason: "Post-condition freshness check requires valid observation timestamps." };
+      }
+      if (captured <= baseline) {
+        return { status: "inconclusive", reason: "Post-condition observation was not captured after the action baseline." };
+      }
+    }
+
     const checks: boolean[] = [];
     if (expectation.activeWindowTitleIncludes !== undefined) {
       const title = observation.activeWindowTitle?.toLocaleLowerCase("fi-FI");
@@ -55,25 +68,17 @@ export class ComputerActionResultValidator {
       if (text === undefined) {
         return { status: "inconclusive", reason: "Post-condition requires OCR text, but no visible text is available." };
       }
-      for (const expected of expectation.visibleTextIncludes) {
-        checks.push(text.includes(expected.toLocaleLowerCase("fi-FI")));
-      }
+      for (const expected of expectation.visibleTextIncludes) checks.push(text.includes(expected.toLocaleLowerCase("fi-FI")));
     }
     if (expectation.visibleTextExcludes !== undefined) {
       if (text === undefined) {
         return { status: "inconclusive", reason: "Post-condition requires OCR text, but no visible text is available." };
       }
-      for (const forbidden of expectation.visibleTextExcludes) {
-        checks.push(!text.includes(forbidden.toLocaleLowerCase("fi-FI")));
-      }
+      for (const forbidden of expectation.visibleTextExcludes) checks.push(!text.includes(forbidden.toLocaleLowerCase("fi-FI")));
     }
 
-    if (checks.length === 0) {
-      return { status: "inconclusive", reason: "No observable post-condition was supplied." };
-    }
-    if (checks.every(Boolean)) {
-      return { status: "confirmed", reason: "The new screen observation satisfies all supplied post-condition checks." };
-    }
+    if (checks.length === 0) return { status: "inconclusive", reason: "No observable post-condition was supplied." };
+    if (checks.every(Boolean)) return { status: "confirmed", reason: "The new screen observation satisfies all supplied post-condition checks." };
     return { status: "not_confirmed", reason: "The new screen observation does not satisfy all supplied post-condition checks." };
   }
 }
