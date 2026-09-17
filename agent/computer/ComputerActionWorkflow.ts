@@ -2,6 +2,7 @@ import type { ScreenObservation } from "../vision/ScreenObservation.js";
 import type { ComputerActionController, ComputerActionRequest, ComputerActionProposal, ComputerActionExecution } from "./ComputerActionController.js";
 import type { ComputerActionLifecycle } from "./ComputerActionLifecycle.js";
 import type { ComputerPostConditionExpectation, ComputerPostConditionValidation } from "./ComputerActionResultValidator.js";
+import type { ComputerVerificationPolicy } from "./ComputerVerificationPolicy.js";
 
 export interface ScreenObservationProvider {
   capture(): Promise<ScreenObservation>;
@@ -16,16 +17,18 @@ export interface ComputerActionWorkflowExecution {
   queued: ComputerActionWorkflowQueued;
   execution: ComputerActionExecution;
   postCondition?: ComputerPostConditionValidation;
+  verificationAttempts: number;
 }
 
-/** Coordinates supervised computer actions; approval remains authoritative and verification uses a fresh observation. */
+/** Coordinates supervised computer actions; approval remains authoritative and verification uses fresh observations. */
 export class ComputerActionWorkflow {
   private readonly queuedActions = new Map<string, ComputerActionWorkflowQueued>();
 
   constructor(
     private readonly controller: ComputerActionController,
     private readonly lifecycle: ComputerActionLifecycle,
-    private readonly observations: ScreenObservationProvider
+    private readonly observations: ScreenObservationProvider,
+    private readonly verificationPolicy?: ComputerVerificationPolicy
   ) {}
 
   async propose(
@@ -34,9 +37,7 @@ export class ComputerActionWorkflow {
     sessionId: string
   ): Promise<ComputerActionWorkflowQueued> {
     const queued = await this.controller.proposeAndQueue(observation, action);
-    if (!queued.proposal?.actionId) {
-      throw new Error("Computer action was not queued for supervised approval.");
-    }
+    if (!queued.proposal?.actionId) throw new Error("Computer action was not queued for supervised approval.");
     this.lifecycle.recordProposal(queued.proposal, sessionId);
     this.lifecycle.recordApprovalRequested(sessionId, queued.proposal.actionId);
     const result = { proposal: queued.proposal, queuedResult: queued.result };
@@ -53,15 +54,19 @@ export class ComputerActionWorkflow {
     const execution = await this.controller.approve(actionId);
     if (execution.result.approved === true) this.lifecycle.recordApproval(sessionId, actionId);
     const validation = this.lifecycle.recordExecution(sessionId, actionId, execution.result);
+    if (validation.status !== "accepted") return { queued, execution, verificationAttempts: 0 };
+    if (expectation === undefined) return { queued, execution, verificationAttempts: 0 };
 
-    if (validation.status !== "accepted") return { queued, execution };
-
-    const freshObservation = await this.observations.capture();
-    const postCondition = expectation === undefined
-      ? undefined
-      : this.lifecycle.recordPostCondition(sessionId, actionId, freshObservation, expectation);
-
-    return { queued, execution, ...(postCondition ? { postCondition } : {}) };
+    const policy = this.verificationPolicy;
+    let attempts = 0;
+    while (true) {
+      attempts += 1;
+      const freshObservation = await this.observations.capture();
+      const postCondition = this.lifecycle.recordPostCondition(sessionId, actionId, freshObservation, expectation);
+      if (!policy || policy.decide(postCondition, attempts) !== "observe_again") {
+        return { queued, execution, postCondition, verificationAttempts: attempts };
+      }
+    }
   }
 
   reject(actionId: string, sessionId: string): void {
