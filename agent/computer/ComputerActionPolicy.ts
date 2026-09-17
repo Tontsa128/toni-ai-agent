@@ -6,14 +6,18 @@ export interface ComputerActionPolicyDecision {
   reason: string;
 }
 
-/** Central, deterministic guard for computer actions before they reach the supervisor. */
+/**
+ * Central, deterministic classification guard for computer input.
+ * This policy never grants execution; SupervisedToolExecutor remains authoritative.
+ */
 export class ComputerActionPolicy {
-  decide(action: "click" | "type" | "keypress", approved: boolean): ComputerActionPolicyDecision {
-    if (action === "type" || action === "keypress" || action === "click") {
-      if (!approved) {
-        return { risk: "approval_required", allowed: false, reason: "Explicit human approval is required for computer input." };
-      }
-      return { risk: "approval_required", allowed: true, reason: "Computer input may proceed only after explicit human approval." };
+  decide(action: "click" | "type" | "keypress"): ComputerActionPolicyDecision {
+    if (action === "click" || action === "type" || action === "keypress") {
+      return {
+        risk: "approval_required",
+        allowed: false,
+        reason: "Computer input requires explicit human approval before execution."
+      };
     }
     return { risk: "never_auto", allowed: false, reason: "Unsupported computer action." };
   }
