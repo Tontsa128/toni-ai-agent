@@ -38,6 +38,7 @@ export class ComputerActionWorkflow {
       throw new Error("Computer action was not queued for supervised approval.");
     }
     this.lifecycle.recordProposal(queued.proposal, sessionId);
+    this.lifecycle.recordApprovalRequested(sessionId, queued.proposal.actionId);
     const result = { proposal: queued.proposal, queuedResult: queued.result };
     this.queuedActions.set(queued.proposal.actionId, result);
     return result;
@@ -50,6 +51,7 @@ export class ComputerActionWorkflow {
   ): Promise<ComputerActionWorkflowExecution> {
     const queued = this.requireQueued(actionId);
     const execution = await this.controller.approve(actionId);
+    if (execution.result.approved === true) this.lifecycle.recordApproval(sessionId, actionId);
     const validation = this.lifecycle.recordExecution(sessionId, actionId, execution.result);
 
     if (validation.status !== "accepted") return { queued, execution };
