@@ -18,11 +18,10 @@ export interface ComputerActionWorkflowExecution {
   postCondition?: ComputerPostConditionValidation;
 }
 
-/**
- * Coordinates the supervised computer-action lifecycle without ever bypassing approval.
- * Verification always uses a fresh observation captured after the approved execution.
- */
+/** Coordinates supervised computer actions; approval remains authoritative and verification uses a fresh observation. */
 export class ComputerActionWorkflow {
+  private readonly queuedActions = new Map<string, ComputerActionWorkflowQueued>();
+
   constructor(
     private readonly controller: ComputerActionController,
     private readonly lifecycle: ComputerActionLifecycle,
@@ -35,11 +34,13 @@ export class ComputerActionWorkflow {
     sessionId: string
   ): Promise<ComputerActionWorkflowQueued> {
     const queued = await this.controller.proposeAndQueue(observation, action);
-    if (!queued.proposal || !queued.proposal.actionId) {
+    if (!queued.proposal?.actionId) {
       throw new Error("Computer action was not queued for supervised approval.");
     }
     this.lifecycle.recordProposal(queued.proposal, sessionId);
-    return { proposal: queued.proposal, queuedResult: queued.result };
+    const result = { proposal: queued.proposal, queuedResult: queued.result };
+    this.queuedActions.set(queued.proposal.actionId, result);
+    return result;
   }
 
   async approveAndVerify(
@@ -47,36 +48,30 @@ export class ComputerActionWorkflow {
     sessionId: string,
     expectation?: ComputerPostConditionExpectation
   ): Promise<ComputerActionWorkflowExecution> {
+    const queued = this.requireQueued(actionId);
     const execution = await this.controller.approve(actionId);
     const validation = this.lifecycle.recordExecution(sessionId, actionId, execution.result);
 
-    if (validation.status !== "accepted") {
-      return { queued: this.requireQueued(actionId), execution };
-    }
+    if (validation.status !== "accepted") return { queued, execution };
 
     const freshObservation = await this.observations.capture();
     const postCondition = expectation === undefined
       ? undefined
       : this.lifecycle.recordPostCondition(sessionId, actionId, freshObservation, expectation);
 
-    return { queued: this.requireQueued(actionId), execution, ...(postCondition ? { postCondition } : {}) };
+    return { queued, execution, ...(postCondition ? { postCondition } : {}) };
   }
 
   reject(actionId: string, sessionId: string): void {
+    this.requireQueued(actionId);
     this.controller.reject(actionId);
     this.lifecycle.recordRejection(sessionId, actionId);
+    this.queuedActions.delete(actionId);
   }
-
-  private queuedByActionId = new Map<string, ComputerActionWorkflowQueued>();
 
   private requireQueued(actionId: string): ComputerActionWorkflowQueued {
-    const queued = this.queuedByActionId.get(actionId);
+    const queued = this.queuedActions.get(actionId);
     if (!queued) throw new Error(`Unknown computer action: ${actionId}`);
-    return queued;
-  }
-
-  private remember(queued: ComputerActionWorkflowQueued): ComputerActionWorkflowQueued {
-    this.queuedByActionId.set(queued.proposal.actionId!, queued);
     return queued;
   }
 }
