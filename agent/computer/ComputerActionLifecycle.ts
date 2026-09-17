@@ -18,6 +18,8 @@ export interface ComputerActionLifecycleResult {
 
 /** Records the deterministic Computer Action lifecycle; it never executes actions implicitly. */
 export class ComputerActionLifecycle {
+  private readonly observationBaselines = new Map<string, string>();
+
   constructor(
     private readonly validator: ComputerActionResultValidator,
     private readonly audit: AuditLog
@@ -29,7 +31,10 @@ export class ComputerActionLifecycle {
       sessionId,
       summary: `Computer action proposed: ${proposal.action.type}`
     };
-    if (proposal.actionId !== undefined) event.actionId = proposal.actionId;
+    if (proposal.actionId !== undefined) {
+      event.actionId = proposal.actionId;
+      this.observationBaselines.set(proposal.actionId, proposal.observationCapturedAt);
+    }
     this.audit.append(event);
   }
 
@@ -51,7 +56,11 @@ export class ComputerActionLifecycle {
     observation: ScreenObservation,
     expectation: ComputerPostConditionExpectation
   ): ComputerPostConditionValidation {
-    const validation = this.validator.validatePostCondition(observation, expectation);
+    const baseline = this.observationBaselines.get(actionId);
+    const effectiveExpectation = baseline === undefined || expectation.observationCapturedAfter !== undefined
+      ? expectation
+      : { ...expectation, observationCapturedAfter: baseline };
+    const validation = this.validator.validatePostCondition(observation, effectiveExpectation);
     const type = validation.status === "confirmed"
       ? "computer_action_verification_confirmed"
       : validation.status === "not_confirmed"
