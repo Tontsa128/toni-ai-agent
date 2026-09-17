@@ -38,6 +38,33 @@ export class ComputerActionLifecycle {
     this.audit.append(event);
   }
 
+  recordApprovalRequested(sessionId: string, actionId: string): void {
+    this.audit.append({
+      type: "computer_action_approval_requested",
+      sessionId,
+      actionId,
+      summary: "Human approval requested for computer action"
+    });
+  }
+
+  recordApproval(sessionId: string, actionId: string): void {
+    this.audit.append({
+      type: "computer_action_approved",
+      sessionId,
+      actionId,
+      summary: "Human approval granted for computer action"
+    });
+  }
+
+  recordRejection(sessionId: string, actionId: string): void {
+    this.audit.append({
+      type: "computer_action_rejected",
+      sessionId,
+      actionId,
+      summary: "Human rejected computer action"
+    });
+  }
+
   recordExecution(sessionId: string, actionId: string, execution: ToolExecutionResult): ComputerActionValidation {
     const validation = this.validator.validate(execution);
     this.audit.append({
