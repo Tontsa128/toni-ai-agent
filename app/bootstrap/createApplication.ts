@@ -24,6 +24,7 @@ import { CancellationRegistry } from "../../agent/core/CancellationRegistry.js";
 import { HealthService } from "../health/HealthService.js";
 import { runStartupChecks, type StartupCheck } from "../health/StartupChecks.js";
 import { StartupState } from "../lifecycle/StartupState.js";
+import { ProcessLock } from "../lifecycle/ProcessLock.js";
 import { WindowsJobController, type WindowsJobOptions } from "../../agent/worker/WindowsJobController.js";
 import { DEFAULT_WORKER_LIMITS } from "../../agent/worker/WorkerLimits.js";
 import { InteractiveSession } from "../InteractiveSession.js";
@@ -43,6 +44,7 @@ export interface ApplicationContext {
   registry: ToolRegistry;
   orchestrator: AgentOrchestrator;
   cancellation: CancellationRegistry;
+  processLock: ProcessLock;
   createSessionBudget: () => SessionBudget;
   createSessionLock: () => SessionLock;
   createSessionCancellation: () => CancellationRegistry;
@@ -55,6 +57,7 @@ export interface ApplicationContext {
 export async function createApplication(workspace?: string): Promise<ApplicationContext> {
   const state = new StartupState();
   let database: ToniDatabase | undefined;
+  let processLock: ProcessLock | undefined;
   try {
     const config = loadConfig();
     const paths = createAppPaths();
@@ -64,6 +67,7 @@ export async function createApplication(workspace?: string): Promise<Application
       mkdir(paths.logDirectory, { recursive: true }),
       mkdir(paths.backupDirectory, { recursive: true })
     ]);
+    processLock = await ProcessLock.acquire(resolve(paths.dataRoot, "toni-agent.lock"));
     const logger = new Logger(config.environment === "production" ? "info" : "debug");
     const metrics = new Metrics();
     state.setPhase("config_loaded");
@@ -117,68 +121,32 @@ export async function createApplication(workspace?: string): Promise<Application
 
     const registry = new ToolRegistry();
     const toolOptions: DefaultToolRegistryOptions = {
-      workerLimits: {
-        ...DEFAULT_WORKER_LIMITS,
-        timeoutMs: config.commandTimeoutMs,
-        maxProcesses: config.workerMaxProcesses,
-        maxMemoryMb: config.workerMemoryMb
-      },
+      workerLimits: { ...DEFAULT_WORKER_LIMITS, timeoutMs: config.commandTimeoutMs, maxProcesses: config.workerMaxProcesses, maxMemoryMb: config.workerMemoryMb },
       ...(windowsJob ? { windowsJob } : {})
     };
     registerAllTools(registry, resolvedWorkspace, toolOptions);
-
     state.setPhase("tools_ready");
+
     const modelProvider = new OpenAIProvider(config.openAiModel);
     state.setPhase("providers_ready");
 
-    const healthService = new HealthService({
-      configurationReady: true,
-      approvalStoreReady: true,
-      modelConfigured: Boolean(config.openAiModel)
-    });
-
+    const healthService = new HealthService({ configurationReady: true, approvalStoreReady: true, modelConfigured: Boolean(config.openAiModel) });
     const checks: StartupCheck[] = [
-      {
-        name: "configuration",
-        requiredInProduction: true,
-        async run(): Promise<void> {
-          if (!config.openAiModel) throw new Error("OPENAI_MODEL is missing.");
-          if (config.environment === "production" && !config.openAiApiKey) throw new Error("OPENAI_API_KEY is missing.");
-          if (config.environment === "production" && !config.authToken) throw new Error("TONI_AUTH_TOKEN is missing.");
-        }
-      },
-      {
-        name: "workspace",
-        requiredInProduction: true,
-        async run(): Promise<void> {
-          await access(resolvedWorkspace, constants.R_OK | constants.X_OK);
-        }
-      },
-      {
-        name: "tool-registry",
-        requiredInProduction: true,
-        async run(): Promise<void> {
-          if (registry.list().length === 0) throw new Error("No tools have been registered.");
-        }
-      },
-      {
-        name: "approval-storage",
-        requiredInProduction: true,
-        async run(): Promise<void> {
-          approvalRepository.getActive("__startup_probe__");
-        }
-      },
-      {
-        name: "audit-storage",
-        requiredInProduction: true,
-        async run(): Promise<void> {
-          verifyDatabase(database!.connection());
-          verifyAuditChain(database!.connection());
-          auditRepository.append({ type: "startup_check", message: "Application startup check." });
-          const verification = auditRepository.verify();
-          if (!verification.ok) throw new Error(verification.error);
-        }
-      },
+      { name: "configuration", requiredInProduction: true, async run() {
+        if (!config.openAiModel) throw new Error("OPENAI_MODEL is missing.");
+        if (config.environment === "production" && !config.openAiApiKey) throw new Error("OPENAI_API_KEY is missing.");
+        if (config.environment === "production" && !config.authToken) throw new Error("TONI_AUTH_TOKEN is missing.");
+      }},
+      { name: "workspace", requiredInProduction: true, async run() { await access(resolvedWorkspace, constants.R_OK | constants.X_OK); }},
+      { name: "tool-registry", requiredInProduction: true, async run() { if (registry.list().length === 0) throw new Error("No tools have been registered."); }},
+      { name: "approval-storage", requiredInProduction: true, async run() { approvalRepository.getActive("__startup_probe__"); }},
+      { name: "audit-storage", requiredInProduction: true, async run() {
+        verifyDatabase(database!.connection());
+        verifyAuditChain(database!.connection());
+        auditRepository.append({ type: "startup_check", message: "Application startup check." });
+        const verification = auditRepository.verify();
+        if (!verification.ok) throw new Error(verification.error);
+      }},
       startupJobCheck
     ];
 
@@ -186,51 +154,24 @@ export async function createApplication(workspace?: string): Promise<Application
     state.setPhase("sandbox_ready");
 
     return {
-      workspace: resolvedWorkspace,
-      config,
-      state,
-      database,
-      approvalRepository,
-      approvalStore,
-      auditRepository,
-      healthService,
-      modelProvider,
-      registry,
-      orchestrator,
-      cancellation: new CancellationRegistry(),
+      workspace: resolvedWorkspace, config, state, database, approvalRepository, approvalStore, auditRepository,
+      healthService, modelProvider, registry, orchestrator, cancellation: new CancellationRegistry(), processLock,
       createSessionBudget: () => new SessionBudget(config.maxToolCalls),
       createSessionLock: () => new SessionLock(),
       createSessionCancellation: () => new CancellationRegistry(),
-      ...(windowsJob ? { windowsJob } : {}),
-      logger,
-      metrics,
+      ...(windowsJob ? { windowsJob } : {}), logger, metrics,
       createInteractiveSession: (userId = "local-user") => {
         const auditSink = {
           append: (event: { type: string; sessionId: string; actionId: string; summary?: string; reason?: string }) =>
-            auditRepository.append({
-              type: event.type,
-              userId,
-              sessionId: event.sessionId,
-              actionId: event.actionId,
-              message: event.reason ?? event.summary ?? event.type
-            })
+            auditRepository.append({ type: event.type, userId, sessionId: event.sessionId, actionId: event.actionId, message: event.reason ?? event.summary ?? event.type })
         };
         const executor = new SupervisedToolExecutor(
-          orchestrator,
-          registry,
+          orchestrator, registry,
           { mode: "coding", workspace: resolvedWorkspace, userRequest: "web session", userId },
-          approvalStore,
-          auditSink,
-          config.maxToolCalls,
-          logger,
-          metrics
+          approvalStore, auditSink, config.maxToolCalls, logger, metrics
         );
         return new InteractiveSession({
-          model: config.openAiModel,
-          workspace: resolvedWorkspace,
-          orchestrator,
-          executor,
-          toolRegistry: registry,
+          model: config.openAiModel, workspace: resolvedWorkspace, orchestrator, executor, toolRegistry: registry,
           costBudget: new CostBudget(config.maxInputTokens, config.maxOutputTokens, config.maxSessionUsd),
           providerBudget: new ProviderBudget(config.maxProviderRequests)
         });
@@ -239,6 +180,7 @@ export async function createApplication(workspace?: string): Promise<Application
   } catch (error: unknown) {
     state.fail(error instanceof Error ? error.message : "Application startup failed.");
     try { database?.close(); } catch {}
+    try { await processLock?.release(); } catch {}
     throw error;
   }
 }
