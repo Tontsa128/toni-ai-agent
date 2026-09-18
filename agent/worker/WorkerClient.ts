@@ -15,8 +15,10 @@ export interface WorkerClientOptions {
 
 export class WorkerClient {
   private readonly workerPath: string;
-  public constructor(private readonly options: WorkerClientOptions) {
-    validateWorkerLimits(options.limits);
+  private readonly options: WorkerClientOptions;
+  public constructor(options: WorkerClientOptions | WorkerLimits) {
+    this.options = "limits" in options ? options : { limits: options };
+    validateWorkerLimits(this.options.limits);
     this.workerPath = join(dirname(fileURLToPath(import.meta.url)), "WorkerProcess.js");
   }
 
