@@ -9,7 +9,7 @@ export async function withRequestContext(
   handler: (context: RequestContext) => Promise<void>
 ): Promise<void> {
   const requested = typeof request.headers["x-request-id"] === "string" ? request.headers["x-request-id"] : undefined;
-  const context = createRequestContext({ requestId: requested && /^[A-Za-z0-9._:-]{1,128}$/.test(requested) ? requested : undefined });
+  const context = createRequestContext(requested && /^[A-Za-z0-9._:-]{1,128}$/.test(requested) ? { requestId: requested } : {});
   response.setHeader("x-request-id", context.requestId);
   metrics.requestStarted();
   const startedAt = Date.now();
