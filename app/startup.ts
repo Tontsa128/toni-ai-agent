@@ -19,7 +19,6 @@ export interface AgentRuntime {
   orchestrator: AgentOrchestrator;
   executor: SupervisedToolExecutor;
   computerController: ComputerActionController;
-  session: InteractiveSession;
 }
 
 export async function initializeAgentRuntime(workspace = process.cwd()): Promise<AgentRuntime> {
@@ -48,14 +47,15 @@ export async function initializeAgentRuntime(workspace = process.cwd()): Promise
     userRequest: "interactive session",
   });
   const computerController = new ComputerActionController(executor);
-  const session = new InteractiveSession({
-    model: config.openAiModel,
-    workspace,
-    policy,
-    orchestrator,
-    executor,
-    toolRegistry: registry,
-  });
+  return { config, approvalStore, healthService, modelProvider, registry, orchestrator, executor, computerController };
+}
 
-  return { config, approvalStore, healthService, modelProvider, registry, orchestrator, executor, computerController, session };
+export function createInteractiveSession(runtime: AgentRuntime): InteractiveSession {
+  return new InteractiveSession({
+    model: runtime.config.openAiModel,
+    workspace: process.cwd(),
+    orchestrator: runtime.orchestrator,
+    executor: runtime.executor,
+    toolRegistry: runtime.registry,
+  });
 }
