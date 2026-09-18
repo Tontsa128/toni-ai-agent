@@ -32,4 +32,5 @@ export interface AgentContext {
   mode: AgentMode;
   workspace?: string;
   userRequest: string;
+  userId?: string;
 }
