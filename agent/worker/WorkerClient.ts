@@ -10,7 +10,7 @@ import { WindowsJobController } from "./WindowsJobController.js";
 export interface WorkerCommand { command: string; args: string[]; cwd: string; }
 export interface WorkerClientOptions {
   limits: WorkerLimits;
-  windowsJob?: WindowsJobController;
+  windowsJob?: import("./WindowsJobController.js").WindowsJobOptions;
 }
 
 export class WorkerClient {
@@ -23,12 +23,13 @@ export class WorkerClient {
   public run(command: WorkerCommand, signal: AbortSignal): Promise<WorkerResponse> {
     const requestId = randomUUID();
     const limits = this.options.limits;
+    const jobOptions = this.options.windowsJob;
     return new Promise((resolve, reject) => {
       let child: ChildProcess | undefined;
       let settled = false;
       let timer: NodeJS.Timeout | undefined;
       let jobAttached = false;
-      const job = this.options.windowsJob;
+      const job = jobOptions ? new WindowsJobController(jobOptions) : undefined;
 
       const cleanup = () => {
         if (timer) clearTimeout(timer);
