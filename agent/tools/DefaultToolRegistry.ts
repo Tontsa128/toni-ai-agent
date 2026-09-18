@@ -7,6 +7,7 @@ import { TerminalExecutor } from "../sandbox/TerminalExecutor.js";
 import { createWordDocument } from "./WordDocumentTool.js";
 import { browserTools } from "./BrowserTool.js";
 import { WindowsComputerAdapter } from "../../computer/WindowsComputerAdapter.js";
+import { ComputerEmergencyStop } from "../computer/ComputerEmergencyStop.js";
 import type { SandboxPolicy } from "../sandbox/types.js";
 import type { WorkerLimits } from "../worker/WorkerLimits.js";
 import type { WindowsJobOptions } from "../worker/WindowsJobController.js";
@@ -73,7 +74,7 @@ const runCommandTool = (workspace: string, workerLimits?: WorkerLimits, windowsJ
   }
 });
 
-const computerTools = (computer = new WindowsComputerAdapter()): ToolDefinition[] => [
+const computerTools = (computer = new WindowsComputerAdapter(), emergencyStop = new ComputerEmergencyStop()): ToolDefinition[] => [
   {
     name: "computer_click",
     description: "Click the Windows desktop at screen coordinates. Human approval is required.",
@@ -82,6 +83,7 @@ const computerTools = (computer = new WindowsComputerAdapter()): ToolDefinition[
       if (typeof input !== "object" || input === null) throw new Error("object input is required");
       const value = input as { x?: unknown; y?: unknown };
       if (typeof value.x !== "number" || typeof value.y !== "number") throw new Error("x and y are required");
+      emergencyStop.assertRunning();
       await computer.click(value.x, value.y);
       return { ok: true, x: value.x, y: value.y };
     }
@@ -92,6 +94,7 @@ const computerTools = (computer = new WindowsComputerAdapter()): ToolDefinition[
     risk: "yellow",
     async execute(input) {
       if (typeof input !== "object" || input === null || typeof (input as { text?: unknown }).text !== "string") throw new Error("text is required");
+      emergencyStop.assertRunning();
       await computer.type((input as { text: string }).text);
       return { ok: true };
     }
@@ -102,13 +105,14 @@ const computerTools = (computer = new WindowsComputerAdapter()): ToolDefinition[
     risk: "yellow",
     async execute(input) {
       if (typeof input !== "object" || input === null || typeof (input as { key?: unknown }).key !== "string") throw new Error("key is required");
+      emergencyStop.assertRunning();
       await computer.keypress((input as { key: string }).key);
       return { ok: true };
     }
   }
 ];
 
-export interface DefaultToolRegistryOptions { workerLimits?: WorkerLimits; windowsJob?: WindowsJobOptions; } 
+export interface DefaultToolRegistryOptions { workerLimits?: WorkerLimits; windowsJob?: WindowsJobOptions; computerEmergencyStop?: ComputerEmergencyStop; } 
 
 export function createDefaultToolRegistry(workspace: string, options: DefaultToolRegistryOptions = {}): ToolRegistry {
   const registry = new ToolRegistry();
@@ -120,7 +124,7 @@ export function createDefaultToolRegistry(workspace: string, options: DefaultToo
   registry.register(writeWordDocumentTool(workspace));
   registry.register(runCommandTool(workspace, options.workerLimits, options.windowsJob));
   for (const tool of browserTools(workspace)) registry.register(tool);
-  for (const tool of computerTools()) registry.register(tool);
+  for (const tool of computerTools(new WindowsComputerAdapter(), options.computerEmergencyStop)) registry.register(tool);
 
   const git = new GitReadTool();
   registry.register({
