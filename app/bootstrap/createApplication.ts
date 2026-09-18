@@ -30,6 +30,7 @@ import { DEFAULT_WORKER_LIMITS } from "../../agent/worker/WorkerLimits.js";
 import { InteractiveSession } from "../InteractiveSession.js";
 import { Logger } from "../observability/Logger.js";
 import { Metrics } from "../observability/Metrics.js";
+import { ComputerEmergencyStop } from "../../agent/computer/ComputerEmergencyStop.js";
 
 export interface ApplicationContext {
   workspace: string;
@@ -52,6 +53,7 @@ export interface ApplicationContext {
   windowsJob?: WindowsJobOptions;
   logger: Logger;
   metrics: Metrics;
+  computerEmergencyStop: ComputerEmergencyStop;
 }
 
 export async function createApplication(workspace?: string): Promise<ApplicationContext> {
@@ -70,6 +72,7 @@ export async function createApplication(workspace?: string): Promise<Application
     processLock = await ProcessLock.acquire(resolve(paths.dataRoot, "toni-agent.lock"));
     const logger = new Logger(config.environment === "production" ? "info" : "debug");
     const metrics = new Metrics();
+    const computerEmergencyStop = new ComputerEmergencyStop();
     state.setPhase("config_loaded");
 
     const requestedWorkspace = resolve(workspace ?? paths.workspaceDirectory);
@@ -122,7 +125,8 @@ export async function createApplication(workspace?: string): Promise<Application
     const registry = new ToolRegistry();
     const toolOptions: DefaultToolRegistryOptions = {
       workerLimits: { ...DEFAULT_WORKER_LIMITS, timeoutMs: config.commandTimeoutMs, maxProcesses: config.workerMaxProcesses, maxMemoryMb: config.workerMemoryMb },
-      ...(windowsJob ? { windowsJob } : {})
+      ...(windowsJob ? { windowsJob } : {}),
+      computerEmergencyStop
     };
     registerAllTools(registry, resolvedWorkspace, toolOptions);
     state.setPhase("tools_ready");
@@ -159,7 +163,7 @@ export async function createApplication(workspace?: string): Promise<Application
       createSessionBudget: () => new SessionBudget(config.maxToolCalls),
       createSessionLock: () => new SessionLock(),
       createSessionCancellation: () => new CancellationRegistry(),
-      ...(windowsJob ? { windowsJob } : {}), logger, metrics,
+      ...(windowsJob ? { windowsJob } : {}), logger, metrics, computerEmergencyStop,
       createInteractiveSession: (userId = "local-user") => {
         const auditSink = {
           append: (event: { type: string; sessionId: string; actionId: string; summary?: string; reason?: string }) =>
