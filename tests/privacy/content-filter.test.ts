@@ -1,0 +1,1 @@
+import test from "node:test";import assert from "node:assert/strict";import { filterSensitiveContent } from "../../agent/privacy/ContentFilter.js";test("secrets are redacted",()=>{const r=filterSensitiveContent("Bearer abcdefghijklmnopqrstuvwxyz123");assert.equal(r.blocked,true);assert.equal(r.value.includes("Bearer abc"),false);});
