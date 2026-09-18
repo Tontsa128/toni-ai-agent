@@ -1,0 +1,1 @@
+import test from "node:test";import assert from "node:assert/strict";import { DEFAULT_RETENTION_POLICY,validateRetentionPolicy } from "../../agent/privacy/RetentionPolicy.js";test("default retention policy is safe",()=>{validateRetentionPolicy(DEFAULT_RETENTION_POLICY);assert.equal(DEFAULT_RETENTION_POLICY.keepRawScreenshots,false);});
