@@ -1,0 +1,5 @@
+import { readFile, readdir } from "node:fs/promises";import { join,relative } from "node:path";
+const roots=["agent","app","tools"];const patterns=[/\bchild_process\.exec\s*\(/,/\bchild_process\.execFile\s*\(/];const allowed=new Set(["agent/worker/WorkerProcess.ts","agent/worker/WindowsJobController.ts"]);const violations=[];
+async function scan(dir){for(const e of await readdir(dir,{withFileTypes:true})){const p=join(dir,e.name);if(e.isDirectory()) await scan(p);else if(e.name.endsWith(".ts")){const rel=relative(process.cwd(),p).replaceAll("\\","/");if(allowed.has(rel)) continue;const c=await readFile(p,"utf8");for(const re of patterns)if(re.test(c))violations.push(rel);}}}
+for(const root of roots){try{await scan(root)}catch{}}
+if(violations.length){console.error("Forbidden direct process execution:",[...new Set(violations)].join(", "));process.exit(1)}console.log("Security boundary scan passed.");
