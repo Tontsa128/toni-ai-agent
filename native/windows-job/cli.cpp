@@ -5,7 +5,9 @@
 #include <windows.h>
 int main(int argc,char** argv) {
     if(argc<5){ std::cerr<<"Usage: toni-job <pid> <memoryBytes> <activeProcesses> <cpuTimeMs>\n"; return 2; }
-    const DWORD pid=static_cast<DWORD>(std::strtoul(argv[1],nullptr,10));
+    const unsigned long rawPid=std::strtoul(argv[1],nullptr,10);
+    if(rawPid==0){ std::cerr<<"pid must be greater than zero\n"; return 2; }
+    const DWORD pid=static_cast<DWORD>(rawPid);
     JobLimits limits{};
     limits.memoryBytes=std::strtoull(argv[2],nullptr,10);
     limits.activeProcessLimit=static_cast<std::uint32_t>(std::strtoul(argv[3],nullptr,10));
