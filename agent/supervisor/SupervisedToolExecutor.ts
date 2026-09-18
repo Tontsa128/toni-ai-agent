@@ -170,6 +170,7 @@ export class SupervisedToolExecutor {
       if (action.risk === "yellow" && !request.approvalId) {
         const created = await createApproval(
           this.approvals,
+          this.context.userId ?? "local-user",
           request.sessionId,
           request.actionId,
           request.toolName,
