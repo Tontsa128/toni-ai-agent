@@ -22,8 +22,9 @@ export class WorkerClient {
     this.workerPath = join(dirname(fileURLToPath(import.meta.url)), "WorkerProcess.js");
   }
 
-  public run(command: WorkerCommand, signal: AbortSignal, requestId = randomUUID()): Promise<WorkerResponse> {
+  public run(command: WorkerCommand, signal: AbortSignal, requestId?: string): Promise<WorkerResponse> {
     const limits = this.options.limits;
+    const effectiveRequestId = requestId ?? randomUUID();
     const jobOptions = this.options.windowsJob;
     return new Promise((resolve, reject) => {
       let child: ChildProcess | undefined;
@@ -87,7 +88,7 @@ export class WorkerClient {
         signal.addEventListener("abort", onAbort, { once: true });
 
         const request: WorkerRequest = {
-          requestId,
+          requestId: effectiveRequestId,
           command: command.command,
           args: command.args,
           cwd: command.cwd,
