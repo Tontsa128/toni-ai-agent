@@ -1,6 +1,12 @@
 import { resolve } from "node:path";
 import { access, constants, realpath, stat } from "node:fs/promises";
 import { loadConfig, type AppConfig } from "../../config/env.js";
+import { createAppPaths } from "../../config/paths.js";
+import { mkdir } from "node:fs/promises";
+import { verifyDatabase } from "../../storage/DatabaseHealth.js";
+import { verifyAuditChain } from "../../agent/audit/verifyAuditChain.js";
+import { CostBudget } from "../../agent/limits/CostBudget.js";
+import { ProviderBudget } from "../../agent/limits/ProviderBudget.js";
 import { loadPolicy } from "../../tools/config.js";
 import { ToniDatabase } from "../../storage/Database.js";
 import { ApprovalRepository } from "../../storage/repositories/ApprovalRepository.js";
@@ -46,20 +52,24 @@ export interface ApplicationContext {
   metrics: Metrics;
 }
 
-export async function createApplication(workspace = process.cwd()): Promise<ApplicationContext> {
+export async function createApplication(workspace?: string): Promise<ApplicationContext> {
   const state = new StartupState();
   let database: ToniDatabase | undefined;
   try {
     const config = loadConfig();
+    const paths = createAppPaths();
+    await mkdir(paths.dataRoot, { recursive: true });
+    await mkdir(paths.auditDirectory, { recursive: true });
+    await mkdir(paths.logDirectory, { recursive: true });
     const logger = new Logger(config.environment === "production" ? "info" : "debug");
     const metrics = new Metrics();
     state.setPhase("config_loaded");
 
-    const resolvedWorkspace = await realpath(resolve(workspace));
+    const resolvedWorkspace = await realpath(resolve(workspace ?? paths.workspaceDirectory));
     const workspaceStats = await stat(resolvedWorkspace);
     if (!workspaceStats.isDirectory()) throw new Error("Workspace is not a directory.");
 
-    database = new ToniDatabase(resolve(resolvedWorkspace, "storage/toni-agent.sqlite"));
+    database = new ToniDatabase(paths.databaseFile);
     database.initialize();
     const approvalRepository = new ApprovalRepository(database.connection());
     const approvalStore = new SqliteApprovalAdapter(approvalRepository, config.approvalTtlMs);
@@ -158,6 +168,8 @@ export async function createApplication(workspace = process.cwd()): Promise<Appl
         requiredInProduction: true,
         async run(): Promise<void> {
           auditRepository.append({ type: "startup_check", message: "Application startup check." });
+          verifyDatabase(database!.connection());
+          verifyAuditChain(database!.connection());
           const verification = auditRepository.verify();
           if (!verification.ok) throw new Error(verification.error);
         }
@@ -213,7 +225,9 @@ export async function createApplication(workspace = process.cwd()): Promise<Appl
           workspace: resolvedWorkspace,
           orchestrator,
           executor,
-          toolRegistry: registry
+          toolRegistry: registry,
+          costBudget: new CostBudget(config.maxInputTokens, config.maxOutputTokens, config.maxSessionUsd),
+          providerBudget: new ProviderBudget(config.maxProviderRequests)
         });
       }
     };
