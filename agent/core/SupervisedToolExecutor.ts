@@ -60,7 +60,7 @@ export class SupervisedToolExecutor {
   isBusy(): boolean { return this.lock.isActive(); }
 
   private async executeWithCancellation(name: string, input: unknown, callId: string, approved: boolean): Promise<ToolExecutionResult> {
-    const operationId = randomUUID();
+    const operationId = callId;
     const signal = this.cancellation.create(operationId);
     try {
       const result = await this.safeExecutor.execute(name, input, { sessionId: this.sessionId, signal });
