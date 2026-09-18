@@ -19,7 +19,14 @@ export type AuditEventType =
   | "computer_action_execution_failed"
   | "computer_action_verification_confirmed"
   | "computer_action_verification_failed"
-  | "computer_action_verification_inconclusive";
+  | "computer_action_verification_inconclusive"
+  | "approval_requested"
+  | "approval_consumed"
+  | "approval_expired"
+  | "tool_allowed"
+  | "tool_denied"
+  | "tool_executed"
+  | "tool_execution_failed";
 
 export interface AuditEvent {
   eventId: string;
@@ -34,7 +41,6 @@ export interface AuditEvent {
 
 export interface AuditLogOptions { filePath: string; }
 
-/** Append-only audit sink for repair and supervised computer-action lifecycle events. */
 export class AuditLog {
   constructor(private readonly options: AuditLogOptions) {}
 

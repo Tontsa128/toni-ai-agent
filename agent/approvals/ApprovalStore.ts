@@ -74,6 +74,16 @@ export class ApprovalStore {
     return record;
   }
 
+  get(approvalId: string): ApprovalRecord | undefined {
+    this.ensureLoaded();
+    const record = this.records.get(approvalId);
+    if (!record) return undefined;
+    if (record.used || record.expiresAt <= this.now()) {
+      return undefined;
+    }
+    return { ...record };
+  }
+
   size(): number {
     this.ensureLoaded();
     return this.records.size;

@@ -1,77 +1,121 @@
 import { randomUUID } from "node:crypto";
 import type { AgentContext } from "../types.js";
 import type { ToolInvocation } from "../sandbox/types.js";
-import { ToolRegistry } from "../tools/ToolRegistry.js";
 import { AgentOrchestrator } from "./AgentOrchestrator.js";
-import { ApprovalContinuation } from "./ApprovalContinuation.js";
 import { CancellationRegistry } from "./CancellationRegistry.js";
 import { SessionLock } from "./SessionLock.js";
 import { SessionBudget } from "../limits/SessionBudget.js";
 import { SafeToolExecutor } from "../tools/SafeToolExecutor.js";
+import { ToolRegistry } from "../tools/ToolRegistry.js";
+import { AuditLog } from "../audit/AuditLog.js";
+import { ApprovalStore } from "../approvals/ApprovalStore.js";
+import { SupervisedToolExecutor as IntegratedSupervisedToolExecutor, type SupervisedToolRequest } from "../supervisor/SupervisedToolExecutor.js";
 import type { ToolExecutionContext, ToolExecutionResult } from "../providers/OpenAIToolLoop.js";
 
 export class SupervisedToolExecutor {
-  readonly continuations: ApprovalContinuation;
-  private readonly cancellation = new CancellationRegistry();
-  private readonly lock = new SessionLock();
-  private readonly safeExecutor: SafeToolExecutor;
+  readonly continuations: { listActionIds: () => string[] };
   private readonly sessionId = randomUUID();
+  private readonly integrated: IntegratedSupervisedToolExecutor;
 
   constructor(
     private readonly orchestrator: AgentOrchestrator,
-    private readonly registry: ToolRegistry,
+    registry: ToolRegistry,
     private readonly context: AgentContext,
+    approvals?: ApprovalStore,
+    audit?: AuditLog,
     maxToolCalls = 8
   ) {
-    this.continuations = new ApprovalContinuation(orchestrator);
-    this.safeExecutor = new SafeToolExecutor(registry, new SessionBudget(maxToolCalls));
+    const approvalStore = approvals ?? new ApprovalStoreCompat();
+    const auditLog = audit ?? new NoopAuditLog();
+    const safeExecutor = new SafeToolExecutor(registry, new SessionBudget(maxToolCalls));
+    this.integrated = new IntegratedSupervisedToolExecutor(
+      registry,
+      safeExecutor,
+      approvalStore,
+      auditLog,
+      orchestrator,
+      context
+    );
+    this.continuations = { listActionIds: () => this.integrated.listPendingActionIds() };
   }
 
   async execute(input: ToolExecutionContext): Promise<ToolExecutionResult> {
-    const tool = this.registry.get(input.name);
     let parsed: unknown;
-    try { parsed = JSON.parse(input.argumentsJson); }
-    catch { return { ok: false, approved: false, output: { error: "Tool arguments were not valid JSON" } }; }
-
-    if (this.cancellation.has(input.callId)) {
-      return { ok: false, approved: false, output: { error: "Tool execution was cancelled." } };
+    try {
+      parsed = JSON.parse(input.argumentsJson);
+    } catch {
+      return { ok: false, approved: false, output: { error: "Tool arguments were not valid JSON" } };
     }
 
-    const invocation: ToolInvocation = { tool: input.name, operation: "execute", input: parsed, risk: tool.risk };
-    const action = this.orchestrator.authorize(this.context, invocation);
-    if (action.requiresApproval) {
-      this.continuations.hold(action.id, this.context, input);
-      return { ok: false, approved: false, output: { status: "approval_required", actionId: action.id, description: action.description, risk: action.risk } };
+    try {
+      const result = await this.integrated.execute({
+        sessionId: this.sessionId,
+        actionId: randomUUID(),
+        toolName: input.name,
+        input: parsed,
+        signal: new AbortController().signal
+      });
+      return {
+        ok: result.executed,
+        approved: result.approved,
+        output: result.output,
+        operationId: result.actionId
+      };
+    } catch (error: unknown) {
+      return {
+        ok: false,
+        approved: false,
+        output: { error: error instanceof Error ? error.message : String(error) },
+        operationId: input.callId
+      };
     }
-
-    return this.lock.runExclusive(async () => this.executeWithCancellation(input.name, parsed, input.callId, true));
   }
 
   async approveAndResume(actionId: string): Promise<ToolExecutionResult> {
-    return this.continuations.approveAndResume(actionId, async (call) =>
-      this.lock.runExclusive(async () => this.executeWithCancellation(call.name, JSON.parse(call.argumentsJson), call.callId, true))
-    );
-  }
-
-  reject(actionId: string): void { this.continuations.reject(actionId); }
-
-  cancel(operationId: string): boolean { return this.cancellation.cancel(operationId); }
-
-  isBusy(): boolean { return this.lock.isActive(); }
-
-  private async executeWithCancellation(name: string, input: unknown, callId: string, approved: boolean): Promise<ToolExecutionResult> {
-    const operationId = callId;
-    const signal = this.cancellation.create(operationId);
     try {
-      const result = await this.safeExecutor.execute(name, input, { sessionId: this.sessionId, signal });
-      return { ok: true, approved, output: result.output, operationId };
+      const result = await this.integrated.approveAndResume(actionId);
+      return {
+        ok: result.executed,
+        approved: result.approved,
+        output: result.output,
+        operationId: result.actionId
+      };
     } catch (error: unknown) {
-      if (error instanceof Error && error.name === "AgentError" && "code" in error && (error as { code?: unknown }).code === "CANCELLED") {
-        return { ok: false, approved, output: { error: "Tool execution was cancelled." }, operationId };
-      }
-      return { ok: false, approved, output: { error: error instanceof Error ? error.message : String(error) }, operationId };
-    } finally {
-      this.cancellation.remove(operationId);
+      return { ok: false, approved: false, output: { error: error instanceof Error ? error.message : String(error) } };
     }
   }
+
+  reject(actionId: string): void {
+    this.integrated.reject(actionId);
+  }
+
+  cancel(operationId: string): boolean {
+    return this.integrated.cancel(operationId);
+  }
+
+  isBusy(): boolean {
+    return this.integrated.isBusy();
+  }
+}
+
+class ApprovalStoreCompat implements import("../supervisor/ApprovalToken.js").ApprovalStoreWriter {
+  private readonly records = new Map<string, import("../approvals/ApprovalStore.js").ApprovalRecord>();
+  async put(input: Omit<import("../approvals/ApprovalStore.js").ApprovalRecord, "createdAt" | "expiresAt" | "used">) {
+    const now = Date.now();
+    const record = { ...input, createdAt: now, expiresAt: now + 120_000, used: false };
+    this.records.set(record.approvalId, record);
+    return record;
+  }
+  get(id: string) { const record = this.records.get(id); return record && !record.used && record.expiresAt > Date.now() ? { ...record } : undefined; }
+  async consume(id: string, sessionId: string, actionId: string, argumentHash: string) {
+    const record = this.get(id);
+    if (!record || record.sessionId !== sessionId || record.actionId !== actionId || record.argumentHash !== argumentHash) throw new Error("Approval is invalid.");
+    record.used = true;
+    this.records.set(id, record);
+    return record;
+  }
+}
+
+class NoopAuditLog implements import("../supervisor/SupervisedToolExecutor.js").AuditSink {
+  append(_event: Parameters<import("../supervisor/SupervisedToolExecutor.js").AuditSink["append"]>[0]): void {}
 }
