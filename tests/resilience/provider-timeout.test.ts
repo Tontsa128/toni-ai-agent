@@ -1,0 +1,2 @@
+import test from "node:test";import assert from "node:assert/strict";import { withTimeout } from "../../agent/providers/withTimeout.js";
+test("provider timeout rejects slow operation", async()=>{ await assert.rejects(withTimeout(new Promise(r=>setTimeout(r,100)),10),/timed out/i); });
