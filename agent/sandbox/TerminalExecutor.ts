@@ -47,7 +47,7 @@ export class TerminalExecutor {
     if(!preflight.ok) return preflight;
     const started=Date.now();
     try {
-      const response=await this.workerClient.run({command:executable,args,cwd}, request.signal ?? new AbortController().signal, request.requestId ?? undefined);
+      const response=await this.workerClient.run({command:executable,args,cwd}, request.signal ?? new AbortController().signal, request.requestId);
       return {
         ok:response.ok, exitCode:response.exitCode??null, stdout:response.stdout??"",
         stderr:response.stderr??"", durationMs:Date.now()-started, blocked:false,
