@@ -25,11 +25,8 @@ export function decideToolPermission(request: ToolPermissionRequest): ToolPermis
   if (request.risk === "yellow") {
     return { decision: "approval_required", reason: "Yellow tool requires approval." };
   }
-  if (request.risk === "red" && request.hasValidApproval) {
-    return {
-      decision: "approval_required",
-      reason: "Red tool requires explicit approval and additional policy checks."
-    };
+  if (request.risk === "red") {
+    return { decision: "deny", reason: "Red tool is blocked by policy." };
   }
-  return { decision: "deny", reason: "Red tool is not allowed automatically." };
+  return { decision: "deny", reason: "Tool is not allowed by policy." };
 }
