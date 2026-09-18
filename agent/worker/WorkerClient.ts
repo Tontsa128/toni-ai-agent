@@ -28,7 +28,6 @@ export class WorkerClient {
       let child: ChildProcess | undefined;
       let settled = false;
       let timer: NodeJS.Timeout | undefined;
-      let jobAttached = false;
       const job = jobOptions ? new WindowsJobController(jobOptions) : undefined;
 
       const cleanup = () => {
@@ -61,7 +60,6 @@ export class WorkerClient {
         if (!child.pid) throw new Error("Worker process did not expose a PID.");
         if (job) {
           await job.attach(child.pid);
-          jobAttached = true;
           void job.waitForHelperExit().then(code => {
             if (!settled && code !== 0) {
               try { child?.kill(); } catch {}
