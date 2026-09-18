@@ -51,7 +51,7 @@ export class TerminalExecutor {
       return {
         ok:response.ok, exitCode:response.exitCode??null, stdout:response.stdout??"",
         stderr:response.stderr??"", durationMs:Date.now()-started, blocked:false,
-        reason:response.error
+        ...(response.error !== undefined ? { reason: response.error } : {})
       };
     } catch(error:unknown) {
       return {ok:false,exitCode:null,stdout:"",stderr:error instanceof Error?error.message:String(error),
