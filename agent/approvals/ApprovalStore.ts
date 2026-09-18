@@ -74,7 +74,7 @@ export class ApprovalStore {
     return record;
   }
 
-  get(approvalId: string): ApprovalRecord | undefined {
+  async consumeVerified(approvalId: string, sessionId: string, actionId: string, argumentHash: string): Promise<void> {\n    await this.consume(approvalId, sessionId, actionId, argumentHash);\n  }\n\n  get(approvalId: string): ApprovalRecord | undefined {
     this.ensureLoaded();
     const record = this.records.get(approvalId);
     if (!record) return undefined;
