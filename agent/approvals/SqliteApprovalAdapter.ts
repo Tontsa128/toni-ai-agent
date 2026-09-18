@@ -11,9 +11,9 @@ export class SqliteApprovalAdapter {
   public async consume(id:string,sessionId:string,actionId:string,argumentHash:string,userId:string,toolName:string):Promise<ApprovalRecord>{
     const ok=this.repository.consumeIfMatches({approvalId:id,userId,sessionId,actionId,toolName,argumentHash});
     if(!ok) throw new Error("Approval is invalid, expired, already used, or mismatched.");
-    const record=this.repository.getActive(id);
-    if(record) return record;
-    return {...({approvalId:id,userId,sessionId,actionId,toolName,argumentHash,createdAt:0,expiresAt:Date.now(),used:true})};
+    const record=this.repository.getById(id);
+    if(!record) throw new Error("Consumed approval record could not be reloaded.");
+    return record;
   }
   public consumeIfMatches(input:{approvalId:string;userId:string;sessionId:string;actionId:string;toolName:string;toolInput:unknown}):boolean{
     return this.repository.consumeIfMatches({...input,argumentHash:hashToolCall(input.toolName,input.toolInput)});
