@@ -17,7 +17,12 @@
     "restore": "node dist/ops/restore.js",
     "rotate-logs": "node dist/ops/rotate-logs.js",
     "verify-installation": "node dist/ops/verify-installation.js",
-    "audit:high": "npm audit --audit-level=high"
+    "audit:high": "npm audit --audit-level=high",
+    "test:unit": "node --test dist/tests/**/*.test.js",
+    "test:resilience": "node --test dist/tests/resilience/**/*.test.js",
+    "test:load": "node --test dist/tests/load/**/*.test.js",
+    "security:boundaries": "node scripts/check-security-boundaries.mjs",
+    "test:all": "npm run check && npm run build && npm run security:boundaries && npm test"
   },
   "engines": {
     "node": ">=22"
