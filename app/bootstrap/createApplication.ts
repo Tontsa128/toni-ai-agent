@@ -19,7 +19,7 @@ import { runStartupChecks, type StartupCheck } from "../health/StartupChecks.js"
 import { StartupState } from "../lifecycle/StartupState.js";
 import { WindowsJobController, type WindowsJobOptions } from "../../agent/worker/WindowsJobController.js";
 import { DEFAULT_WORKER_LIMITS } from "../../agent/worker/WorkerLimits.js";
-import type { InteractiveSession } from "../InteractiveSession.js";
+import { InteractiveSession } from "../InteractiveSession.js";
 
 export interface ApplicationContext {
   workspace: string;
@@ -193,7 +193,7 @@ export async function createApplication(workspace = process.cwd()): Promise<Appl
           auditSink,
           config.maxToolCalls
         );
-        return new (requireInteractiveSession())({
+        return new InteractiveSession({
           model: config.openAiModel,
           workspace: resolvedWorkspace,
           orchestrator,
@@ -211,8 +211,3 @@ export async function createApplication(workspace = process.cwd()): Promise<Appl
   }
 }
 
-function requireInteractiveSession(): typeof import("../InteractiveSession.js").InteractiveSession {
-  // Static import is intentionally avoided above to keep bootstrap dependency direction explicit.
-  return (globalThis as { __ToniInteractiveSession?: typeof import("../InteractiveSession.js").InteractiveSession }).__ToniInteractiveSession
-    ?? (() => { throw new Error("InteractiveSession bootstrap binding is missing."); })();
-}
