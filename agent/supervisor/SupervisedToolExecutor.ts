@@ -1,7 +1,7 @@
 import type { AgentContext, AgentAction } from "../types.js";
 import type { ToolInvocation } from "../sandbox/types.js";
 import { AgentOrchestrator } from "../core/AgentOrchestrator.js";
-import type { ApprovalRecord } from "../approvals/ApprovalStore.js";
+import type { ApprovalRecord } from "../../storage/repositories/ApprovalRepository.js";
 import { AgentError } from "../errors/AgentError.js";
 import { CancellationRegistry } from "../core/CancellationRegistry.js";
 import { SessionLock } from "../core/SessionLock.js";
@@ -33,13 +33,17 @@ export interface ApprovalStorePort {
     sessionId: string;
     actionId: string;
     argumentHash: string;
+    userId: string;
+    toolName: string;
   }): Promise<ApprovalRecord>;
   get(approvalId: string): ApprovalRecord | undefined;
   consume(
     approvalId: string,
     sessionId: string,
     actionId: string,
-    argumentHash: string
+    argumentHash: string,
+    userId: string,
+    toolName: string
   ): Promise<ApprovalRecord>;
 }
 
@@ -221,7 +225,9 @@ export class SupervisedToolExecutor {
           request.approvalId,
           request.sessionId,
           request.actionId,
-          argumentHash
+          argumentHash,
+          this.context.userId ?? "local-user",
+          request.toolName
         );
         this.audit.append({
           type: "approval_consumed",
