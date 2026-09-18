@@ -1,6 +1,9 @@
-import { copyFile, mkdir, readdir, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, stat, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { createAppPaths } from "../config/paths.js";
+import { ToniDatabase } from "../storage/Database.js";
+import { verifyDatabase } from "../storage/DatabaseHealth.js";
+import { verifyAuditChain } from "../agent/audit/verifyAuditChain.js";
 
 export async function createBackup(): Promise<string> {
   const paths = createAppPaths();
@@ -8,14 +11,24 @@ export async function createBackup(): Promise<string> {
   const timestamp = new Date().toISOString().replaceAll(":", "-").replaceAll(".", "-");
   const backupDirectory = join(paths.backupDirectory, timestamp);
   await mkdir(backupDirectory, { recursive: true });
-  await copyFile(paths.databaseFile, join(backupDirectory, basename(paths.databaseFile)));
+
+  const database = new ToniDatabase(paths.databaseFile);
+  try {
+    database.initialize();
+    verifyDatabase(database.connection());
+    verifyAuditChain(database.connection());
+    await database.connection().backup(join(backupDirectory, basename(paths.databaseFile)));
+  } finally {
+    database.close();
+  }
+
   await copyDirectoryFiles(paths.auditDirectory, join(backupDirectory, "audit"));
   await copyDirectoryFiles(paths.logDirectory, join(backupDirectory, "logs"));
   await writeFile(join(backupDirectory, "metadata.json"), JSON.stringify({
     createdAt: new Date().toISOString(),
     database: basename(paths.databaseFile),
     schemaMigrations: "stored in SQLite schema_migrations table",
-    formatVersion: 1
+    formatVersion: 2
   }, null, 2), "utf8");
   return backupDirectory;
 }
@@ -33,7 +46,7 @@ async function copyDirectoryFiles(sourceDirectory: string, destinationDirectory:
     const source = join(sourceDirectory, entry.name);
     const destination = join(destinationDirectory, entry.name);
     const information = await stat(source);
-    if (information.isFile()) await copyFile(source, destination);
+    if (information.isFile()) await import("node:fs/promises").then(fs => fs.copyFile(source, destination));
   }
 }
 
