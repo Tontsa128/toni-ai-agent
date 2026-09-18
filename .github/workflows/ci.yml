@@ -28,6 +28,8 @@ jobs:
         run: npm run build
       - name: Tests
         run: npm test
+      - name: Security boundary scan
+        run: npm run security:boundaries
       - name: Dependency audit
         run: npm audit --audit-level=high
 
