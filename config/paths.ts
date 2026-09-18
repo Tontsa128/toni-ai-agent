@@ -10,6 +10,7 @@ export interface AppPaths {
 }
 
 export function createAppPaths(dataRoot = process.env.TONI_DATA_ROOT ?? join(process.cwd(), "data")): AppPaths {
+  if (process.env.NODE_ENV === "production" && !process.env.TONI_DATA_ROOT) throw new Error("TONI_DATA_ROOT is required in production.");
   return {
     dataRoot,
     databaseFile: join(dataRoot, "database", "toni.sqlite"),
