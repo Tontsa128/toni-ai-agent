@@ -11,6 +11,7 @@ import { HealthService } from "./health/HealthService.js";
 import { loadConfig, type AppConfig } from "../config/env.js";
 
 export interface AgentRuntime {
+  workspace: string;
   config: AppConfig;
   approvalStore: ApprovalStore;
   healthService: HealthService;
@@ -47,13 +48,13 @@ export async function initializeAgentRuntime(workspace = process.cwd()): Promise
     userRequest: "interactive session",
   });
   const computerController = new ComputerActionController(executor);
-  return { config, approvalStore, healthService, modelProvider, registry, orchestrator, executor, computerController };
+  return { workspace, config, approvalStore, healthService, modelProvider, registry, orchestrator, executor, computerController };
 }
 
 export function createInteractiveSession(runtime: AgentRuntime): InteractiveSession {
   return new InteractiveSession({
     model: runtime.config.openAiModel,
-    workspace: process.cwd(),
+    workspace: runtime.workspace,
     orchestrator: runtime.orchestrator,
     executor: runtime.executor,
     toolRegistry: runtime.registry,
