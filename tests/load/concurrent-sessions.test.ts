@@ -1,0 +1,2 @@
+import test from "node:test";import assert from "node:assert/strict";import { SessionBudget } from "../../agent/limits/SessionBudget.js";
+test("sessions have independent budgets",()=>{const first=new SessionBudget(1);const second=new SessionBudget(1);first.consumeToolCall();assert.equal(first.getRemainingToolCalls(),0);assert.equal(second.getRemainingToolCalls(),1);});
