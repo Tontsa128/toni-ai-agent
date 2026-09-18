@@ -55,7 +55,7 @@ export class OpenAIToolLoop {
     return this.processResponse(response, tools, executor, 1, 1, requestId);
   }
 
-  private async createResponse(request: Parameters<typeof this.client.responses.create>[0]): Promise<OpenAI.Responses.Response> {
+  private async createResponse(request: OpenAI.Responses.ResponseCreateParamsNonStreaming): Promise<OpenAI.Responses.Response> {
     this.providerBudget?.consume();
     const timeout = AbortSignal.timeout(this.providerTimeoutMs);
     let response: OpenAI.Responses.Response;
