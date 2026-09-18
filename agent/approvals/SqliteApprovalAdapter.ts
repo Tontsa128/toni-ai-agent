@@ -10,6 +10,7 @@ export class SqliteApprovalAdapter {
   }
 
   public getActive(id:string): ApprovalRecord | undefined { return this.repository.getActive(id); }
+  public get(id:string): ApprovalRecord | undefined { return this.repository.getActive(id); }
 
   public async consume(id:string,sessionId:string,actionId:string,argumentHash:string,userId:string,toolName:string):Promise<ApprovalRecord>{
     const record = this.repository.consumeIfMatchesAndReturn({ approvalId:id,userId,sessionId,actionId,toolName,argumentHash });
