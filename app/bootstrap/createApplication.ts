@@ -102,7 +102,7 @@ export async function createApplication(workspace = process.cwd()): Promise<Appl
         maxProcesses: config.workerMaxProcesses,
         maxMemoryMb: config.workerMemoryMb
       },
-      windowsJob
+      ...(windowsJob ? { windowsJob } : {})
     };
     registerAllTools(registry, resolvedWorkspace, toolOptions);
 
