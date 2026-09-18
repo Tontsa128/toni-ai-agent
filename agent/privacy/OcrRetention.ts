@@ -1,8 +1,2 @@
-export interface OcrSnapshot { text: string; capturedAt: number; expiresAt: number; }
-export class OcrRetention {
-  private snapshot?: OcrSnapshot;
-  constructor(private readonly ttlMs: number) { if (!Number.isInteger(ttlMs) || ttlMs < 0) throw new Error("OCR TTL must be non-negative."); }
-  set(text: string): void { const now = Date.now(); this.snapshot = { text, capturedAt: now, expiresAt: now + this.ttlMs }; }
-  get(): string | undefined { if (!this.snapshot) return undefined; if (this.snapshot.expiresAt <= Date.now()) { this.snapshot = undefined; return undefined; } return this.snapshot.text; }
-  clear(): void { this.snapshot = undefined; }
-}
+export interface OcrSnapshot{text:string;capturedAt:number;expiresAt:number}
+export class OcrRetention{private snapshot?:OcrSnapshot;constructor(private readonly ttlMs:number){if(!Number.isInteger(ttlMs)||ttlMs<0)throw new Error("OCR TTL must be non-negative.");}set(text:string):void{const now=Date.now();this.snapshot={text,capturedAt:now,expiresAt:now+this.ttlMs};}get():string|undefined{if(!this.snapshot)return; if(this.snapshot.expiresAt<=Date.now()){this.snapshot=undefined;return;}return this.snapshot.text;}clear():void{this.snapshot=undefined;}}
