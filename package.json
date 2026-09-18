@@ -22,7 +22,8 @@
     "test:resilience": "node --test \"dist/tests/resilience/**/*.test.js\"",
     "test:load": "node --test \"dist/tests/load/**/*.test.js\"",
     "security:boundaries": "node scripts/check-security-boundaries.mjs",
-    "test:all": "npm run check && npm run build && npm run security:boundaries && npm test"
+    "test:all": "npm run check && npm run build && npm run security:boundaries && node scripts/check-secrets.mjs && npm test && npm run audit:high",
+    "release:verify": "npm run test:all"
   },
   "engines": { "node": ">=22" },
   "dependencies": {
