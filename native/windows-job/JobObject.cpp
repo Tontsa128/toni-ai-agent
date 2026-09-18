@@ -8,9 +8,9 @@ bool JobObject::configure(const JobLimits& limits, std::string& error) {
     if (!limits.activeProcessLimit) { error="activeProcessLimit must be greater than zero"; return false; }
     if (!limits.cpuTimeLimitMs) { error="cpuTimeLimitMs must be greater than zero"; return false; }
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION extended{};
-    extended.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE | JOB_OBJECT_LIMIT_ACTIVE_PROCESS | JOB_OBJECT_LIMIT_PROCESS_TIME | JOB_OBJECT_LIMIT_JOB_MEMORY;
+    extended.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE | JOB_OBJECT_LIMIT_ACTIVE_PROCESS | JOB_OBJECT_LIMIT_JOB_TIME | JOB_OBJECT_LIMIT_JOB_MEMORY;
     extended.BasicLimitInformation.ActiveProcessLimit = limits.activeProcessLimit;
-    extended.BasicLimitInformation.PerProcessUserTimeLimit.QuadPart = static_cast<LONGLONG>(limits.cpuTimeLimitMs) * 10000;
+    extended.BasicLimitInformation.PerJobUserTimeLimit.QuadPart = static_cast<LONGLONG>(limits.cpuTimeLimitMs) * 10000;
     extended.JobMemoryLimit = static_cast<SIZE_T>(limits.memoryBytes);
     if (!SetInformationJobObject(handle_, JobObjectExtendedLimitInformation, &extended, sizeof(extended))) { error=lastError("SetInformationJobObject"); return false; }
     return true;
