@@ -18,6 +18,7 @@ export interface ToolExecutionResult {
   ok: boolean;
   output: unknown;
   approved: boolean;
+  operationId?: string;
 }
 
 export interface PendingToolApproval {
