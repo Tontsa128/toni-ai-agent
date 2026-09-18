@@ -3,7 +3,7 @@ import type { ExecutionRequest, ExecutionResult, SandboxPolicy } from "./types.j
 import { ExecutionSandbox } from "./ExecutionSandbox.js";
 import { WorkerClient } from "../worker/WorkerClient.js";
 import { DEFAULT_WORKER_LIMITS, type WorkerLimits } from "../worker/WorkerLimits.js";
-import { WindowsJobController, type WindowsJobOptions } from "../worker/WindowsJobController.js";
+import type { WindowsJobOptions } from "../worker/WindowsJobController.js";
 
 export interface TerminalExecutorOptions {
   policy: SandboxPolicy;
@@ -22,7 +22,7 @@ export class TerminalExecutor {
     this.sandbox=new ExecutionSandbox(options.policy);
     this.aliases=options.executableAliases??{};
     const limits = options.workerLimits ?? DEFAULT_WORKER_LIMITS;
-    const windowsJob = options.windowsJob && process.platform === "win32" ? new WindowsJobController(options.windowsJob) : undefined;
+    const windowsJob = options.windowsJob && process.platform === "win32" ? options.windowsJob : undefined;
     this.workerClient=new WorkerClient({
       limits: {
         ...limits,
