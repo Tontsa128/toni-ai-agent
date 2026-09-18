@@ -17,8 +17,8 @@ import { WindowsScreenCapture } from "../agent/vision/WindowsScreenCapture.js";
 import { createRequestContext } from "./observability/RequestContext.js";
 import { createErrorResponse } from "./observability/ErrorResponse.js";
 
-const workspace = process.cwd();
-const runtime = await initializeAgentRuntime(workspace);
+const runtime = await initializeAgentRuntime();
+const workspace = runtime.workspace;
 const { config, healthService, logger, metrics } = runtime;
 const port = config.port;
 const maxBodyBytes = config.maxRequestBytes;
@@ -200,7 +200,7 @@ async function readRequestBody(req: IncomingMessage, limit: number): Promise<Buf
   for await (const chunk of req) {
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     size += buffer.length;
-    if (size > limit) throw new Error("Pyyntö on liian suuri (max 30 MB).");
+    if (size > limit) throw new Error("Pyyntö on liian suuri.");
     chunks.push(buffer);
   }
   return Buffer.concat(chunks);
