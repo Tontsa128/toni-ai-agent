@@ -1,0 +1,8 @@
+cmake_minimum_required(VERSION 3.20)
+project(toni_job LANGUAGES CXX)
+add_executable(toni-job cli.cpp JobObject.cpp)
+target_include_directories(toni-job PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_features(toni-job PRIVATE cxx_std_17)
+if(MSVC)
+  target_compile_options(toni-job PRIVATE /W4 /WX)
+endif()
