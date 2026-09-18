@@ -19,6 +19,14 @@ export interface AppConfig {
   workerCpuTimeMs: number;
   windowsJobHelperPath?: string;
   windowsTrustedRoot: string;
+  maxInputTokens: number;
+  maxOutputTokens: number;
+  maxSessionUsd: number;
+  maxProviderRequests: number;
+  auditRetentionDays: number;
+  sessionRetentionDays: number;
+  ocrRetentionMinutes: number;
+  keepRawScreenshots: false;
 }
 
 export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -47,8 +55,23 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
     workerMaxProcesses: parseInteger(source.TONI_WORKER_MAX_PROCESSES, 16, 1, 256),
     workerCpuTimeMs: parseInteger(source.TONI_WORKER_CPU_TIME_MS, 30_000, 100, 300_000),
     ...(source.TONI_JOB_HELPER_PATH?.trim() ? { windowsJobHelperPath: source.TONI_JOB_HELPER_PATH.trim() } : {}),
-    windowsTrustedRoot: source.TONI_TRUSTED_INSTALL_ROOT?.trim() || process.cwd()
+    windowsTrustedRoot: source.TONI_TRUSTED_INSTALL_ROOT?.trim() || process.cwd(),
+    maxInputTokens: parseInteger(source.TONI_MAX_INPUT_TOKENS, 20_000, 1, 1_000_000),
+    maxOutputTokens: parseInteger(source.TONI_MAX_OUTPUT_TOKENS, 5_000, 1, 128_000),
+    maxSessionUsd: parseFloatValue(source.TONI_MAX_SESSION_USD, 1, 0.01, 1000),
+    maxProviderRequests: parseInteger(source.TONI_MAX_PROVIDER_REQUESTS, 20, 1, 1000),
+    auditRetentionDays: parseInteger(source.TONI_AUDIT_RETENTION_DAYS, 30, 1, 365),
+    sessionRetentionDays: parseInteger(source.TONI_SESSION_RETENTION_DAYS, 7, 0, 90),
+    ocrRetentionMinutes: parseInteger(source.TONI_OCR_RETENTION_MINUTES, 5, 0, 60),
+    keepRawScreenshots: source.TONI_KEEP_RAW_SCREENSHOTS === "true" ? (() => { throw new Error("Raw screenshots cannot be enabled."); })() : false
   };
+}
+
+function parseFloatValue(value: string | undefined, fallback: number, minimum: number, maximum: number): number {
+  if (!value) return fallback;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < minimum || parsed > maximum) throw new Error(`Configuration value must be between ${minimum} and ${maximum}.`);
+  return parsed;
 }
 
 function parseInteger(value: string | undefined, fallback: number, minimum: number, maximum: number): number {
