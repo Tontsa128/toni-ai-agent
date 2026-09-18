@@ -105,7 +105,9 @@ const computerTools = (computer = new WindowsComputerAdapter()): ToolDefinition[
   }
 ];
 
-export interface DefaultToolRegistryOptions { workerLimits?: WorkerLimits; windowsJob?: WindowsJobOptions; }\n\nexport function createDefaultToolRegistry(workspace: string, options: DefaultToolRegistryOptions = {}): ToolRegistry {
+export interface DefaultToolRegistryOptions { workerLimits?: WorkerLimits; windowsJob?: WindowsJobOptions; } 
+
+export function createDefaultToolRegistry(workspace: string, options: DefaultToolRegistryOptions = {}): ToolRegistry {
   const registry = new ToolRegistry();
   registry.register({ ...readTextFileTool, execute: async (input) => {
     if (typeof input !== "object" || input === null || typeof (input as { relativePath?: unknown }).relativePath !== "string") throw new Error("relativePath is required");
