@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { hashToolCall } from "../security/ToolCallHash.js";
-import type { ApprovalRecord } from "../../storage/repositories/ApprovalRepository.js";
+import type { ApprovalRecord } from "../approvals/ApprovalStore.js";
 
 export interface ApprovalStoreWriter {
   put(input:{approvalId:string;userId:string;sessionId:string;actionId:string;toolName:string;argumentHash:string}):Promise<ApprovalRecord>;
