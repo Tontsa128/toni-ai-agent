@@ -4,10 +4,12 @@ import { fileURLToPath } from "node:url";
 import { dirname,join } from "node:path";
 import type { WorkerRequest,WorkerResponse } from "./WorkerProtocol.js";
 import type { WorkerLimits } from "./WorkerLimits.js";
+import { validateWorkerLimits } from "./WorkerLimits.js";
 export interface WorkerCommand { command:string; args:string[]; cwd:string; }
 export class WorkerClient {
   private readonly workerPath:string;
   public constructor(private readonly limits:WorkerLimits){
+    validateWorkerLimits(limits);
     const directory=dirname(fileURLToPath(import.meta.url)); this.workerPath=join(directory,"WorkerProcess.js");
   }
   public run(command:WorkerCommand,signal:AbortSignal):Promise<WorkerResponse>{
