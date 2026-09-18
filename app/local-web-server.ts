@@ -16,7 +16,6 @@ import { TesseractScreenTextProvider } from "../agent/vision/TesseractScreenText
 import { WindowsScreenCapture } from "../agent/vision/WindowsScreenCapture.js";
 import { createRequestContext } from "./observability/RequestContext.js";
 import { createErrorResponse } from "./observability/ErrorResponse.js";
-import { ComputerEmergencyStop } from "../agent/computer/ComputerEmergencyStop.js";
 
 const runtime = await initializeAgentRuntime();
 const workspace = runtime.workspace;
@@ -39,7 +38,7 @@ const screenOcrProvider = screenOcrEnabled
 const screenOcrPipeline = new ScreenOcrPipeline(screenPrivacyFilter, screenOcrProvider);
 let latestScreenCaptureAt: string | undefined;
 let latestScreenPrivacyBlocked = false;
-const computerEmergencyStop = new ComputerEmergencyStop();
+
 
 const screenMonitor = process.platform === "win32"
   ? new ScreenMonitor(new WindowsScreenCapture(), {
@@ -107,7 +106,7 @@ const server = createServer(async (req, res) => {
       });
     }
     if (req.method === "POST" && req.url === "/api/emergency-stop") {
-      computerEmergencyStop.stop();
+      runtime.computerEmergencyStop.stop();
       return sendJson(res, 200, { stopped: true });
     }
     if (req.method === "POST" && req.url === "/api/screen/on") {
