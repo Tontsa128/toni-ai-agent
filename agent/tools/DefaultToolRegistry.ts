@@ -66,7 +66,10 @@ const runCommandTool = (workspace: string, workerLimits?: WorkerLimits, windowsJ
       allowCommands: ["node", "npm", "npx", "pnpm", "yarn", "git", "tsc", "tsx", "python", "python3"],
       denyPatterns: ["rm -rf /", "rm -rf *", "format ", "format.com", "del /s /q", "shutdown", "reboot", "mkfs", "diskpart", "reg delete", "cipher /w"]
     };
-    return new TerminalExecutor({ policy, workerLimits, windowsJob }).run({ command: value.command, cwd: workspace });
+    const executorOptions: ConstructorParameters<typeof TerminalExecutor>[0] = { policy };
+    if (workerLimits) executorOptions.workerLimits = workerLimits;
+    if (windowsJob) executorOptions.windowsJob = windowsJob;
+    return new TerminalExecutor(executorOptions).run({ command: value.command, cwd: workspace });
   }
 });
 
