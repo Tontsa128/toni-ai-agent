@@ -22,8 +22,7 @@ export class WorkerClient {
     this.workerPath = join(dirname(fileURLToPath(import.meta.url)), "WorkerProcess.js");
   }
 
-  public run(command: WorkerCommand, signal: AbortSignal): Promise<WorkerResponse> {
-    const requestId = randomUUID();
+  public run(command: WorkerCommand, signal: AbortSignal, requestId = randomUUID()): Promise<WorkerResponse> {
     const limits = this.options.limits;
     const jobOptions = this.options.windowsJob;
     return new Promise((resolve, reject) => {
