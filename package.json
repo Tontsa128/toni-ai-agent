@@ -6,7 +6,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "check": "tsc -p tsconfig.json --noEmit",
-    "test": "node --test dist/tests",
+    "test": "node --test \"dist/tests/**/*.test.js\"",
     "start": "node dist/app/interactive-cli.js",
     "start:plan": "node dist/app/cli.js",
     "start:web": "node dist/app/local-web-server.js",
@@ -18,9 +18,9 @@
     "rotate-logs": "node dist/ops/rotate-logs.js",
     "verify-installation": "node dist/ops/verify-installation.js",
     "audit:high": "npm audit --audit-level=high",
-    "test:unit": "node --test dist/tests",
-    "test:resilience": "node --test dist/tests/resilience",
-    "test:load": "node --test dist/tests/load",
+    "test:unit": "node --test \"dist/tests/**/*.test.js\"",
+    "test:resilience": "node --test \"dist/tests/resilience/**/*.test.js\"",
+    "test:load": "node --test \"dist/tests/load/**/*.test.js\"",
     "security:boundaries": "node scripts/check-security-boundaries.mjs",
     "test:all": "npm run check && npm run build && npm run security:boundaries && npm test"
   },
