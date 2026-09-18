@@ -149,6 +149,8 @@ export async function createApplication(workspace = process.cwd()): Promise<Appl
         requiredInProduction: true,
         async run(): Promise<void> {
           auditRepository.append({ type: "startup_check", message: "Application startup check." });
+          const verification = auditRepository.verify();
+          if (!verification.ok) throw new Error(verification.error);
         }
       },
       startupJobCheck
