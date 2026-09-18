@@ -1,8 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, resolve } from "node:path";
-import { loadPolicy } from "../tools/config.js";
-import { InteractiveSession } from "./InteractiveSession.js";
+import { initializeAgentRuntime } from "./startup.js";
 import { attachmentToContent, type AgentContentPart } from "./AgentInput.js";
 import { ScreenContextAssistant } from "../agent/vision/ScreenContextAssistant.js";
 import { ScreenMonitor } from "../agent/vision/ScreenMonitor.js";
@@ -14,10 +13,11 @@ import { TesseractScreenTextProvider } from "../agent/vision/TesseractScreenText
 import { WindowsScreenCapture } from "../agent/vision/WindowsScreenCapture.js";
 
 const workspace = process.cwd();
-const policy = await loadPolicy(workspace);
-const session = new InteractiveSession({ workspace, policy });
-const port = Number(process.env.TONI_AI_PORT ?? 8787);
-const maxBodyBytes = 30 * 1024 * 1024;
+const runtime = await initializeAgentRuntime(workspace);
+const { config, healthService } = runtime;
+const session = runtime.session;
+const port = config.port;
+const maxBodyBytes = config.maxRequestBytes;
 const maxFileBytes = 20 * 1024 * 1024;
 const screenAssistant = new ScreenContextAssistant();
 const screenSuggestionController = new ScreenSuggestionController();
@@ -69,6 +69,10 @@ const server = createServer(async (req, res) => {
     if (req.method === "GET" && req.url === "/") {
       const html = await readFile(resolve(workspace, "app/public/agent.html"), "utf8");
       return send(res, 200, "text/html; charset=utf-8", html);
+    }
+    if (req.method === "GET" && req.url === "/health") {
+      const health = healthService.getStatus();
+      return sendJson(res, health.status === "ok" ? 200 : 503, health);
     }
     if (req.method === "GET" && req.url === "/api/status") {
       const screenOcr = screenOcrProvider
@@ -147,8 +151,8 @@ const server = createServer(async (req, res) => {
   }
 });
 
-server.listen(port, "127.0.0.1", () => {
-  console.log(`Toni AI Agent UI: http://127.0.0.1:${port}`);
+server.listen(port, config.host, () => {
+  console.log(`Toni AI Agent UI: http://${config.host}:${port}`);
   console.log(`Workspace: ${workspace}`);
   console.log(`Screen monitoring: ${screenMonitor ? "available, OFF by default" : "unavailable on this OS"}`);
 });
