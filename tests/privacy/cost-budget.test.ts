@@ -1,0 +1,1 @@
+import test from "node:test";import assert from "node:assert/strict";import { CostBudget } from "../../agent/limits/CostBudget.js";test("cost budget stops excessive usage",()=>{const b=new CostBudget(1000,1000,.1);b.consume({inputTokens:100,outputTokens:100,estimatedUsd:.05});assert.throws(()=>b.consume({inputTokens:100,outputTokens:100,estimatedUsd:.06}));});
