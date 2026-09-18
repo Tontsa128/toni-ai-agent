@@ -14,10 +14,12 @@ import { ScreenPrivacyFilter } from "../agent/vision/ScreenPrivacyFilter.js";
 import { ScreenOcrPipeline } from "../agent/vision/ScreenOcrPipeline.js";
 import { TesseractScreenTextProvider } from "../agent/vision/TesseractScreenTextProvider.js";
 import { WindowsScreenCapture } from "../agent/vision/WindowsScreenCapture.js";
+import { createRequestContext } from "./observability/RequestContext.js";
+import { createErrorResponse } from "./observability/ErrorResponse.js";
 
 const workspace = process.cwd();
 const runtime = await initializeAgentRuntime(workspace);
-const { config, healthService } = runtime;
+const { config, healthService, logger, metrics } = runtime;
 const port = config.port;
 const maxBodyBytes = config.maxRequestBytes;
 const maxFileBytes = 20 * 1024 * 1024;
@@ -67,9 +69,18 @@ const screenMonitor = process.platform === "win32"
   : undefined;
 
 const server = createServer(async (req, res) => {
+  const suppliedRequestId = typeof req.headers["x-request-id"] === "string" ? req.headers["x-request-id"] : undefined;
+  const requestId = suppliedRequestId && /^[A-Za-z0-9._:-]{1,128}$/.test(suppliedRequestId) ? suppliedRequestId : createRequestContext().requestId;
+  res.setHeader("x-request-id", requestId);
+  metrics.requestStarted();
+  const startedAt = Date.now();
   try {
     if (handleHealthRoute(req, res, runtime.state)) return;
-    if (!runtime.state.isReady()) return sendJson(res, 503, { error: "Application is not ready.", phase: runtime.state.getPhase() });
+    if (req.method === "GET" && req.url === "/metrics") {
+      if (!isAuthorized(req.headers.authorization, config.authToken, config.environment)) return sendJson(res, 401, { error: "Unauthorized", requestId });
+      return sendJson(res, 200, metrics.snapshot());
+    }
+    if (!runtime.state.isReady()) return sendJson(res, 503, { error: "Application is not ready.", phase: runtime.state.getPhase(), requestId });
     if (!isAuthorized(req.headers.authorization, config.authToken, config.environment)) {
       return sendJson(res, 401, { error: "Unauthorized" });
     }
@@ -134,13 +145,13 @@ const server = createServer(async (req, res) => {
         parts.push(attachmentToContent({ filename: value.name, mediaType, size: value.size, content: buffer }));
       }
       if (parts.length === 0) throw new Error("Anna viesti tai liitä vähintään yksi tiedosto.");
-      return sendJson(res, 200, await session.ask(parts));
+      return sendJson(res, 200, await session.ask(parts, requestId));
     }
     if (req.method === "POST" && req.url === "/api/approve") {
       const body = await readJson(req);
       const actionId = typeof body.actionId === "string" ? body.actionId.trim() : "";
       if (!actionId) throw new Error("actionId puuttuu.");
-      return sendJson(res, 200, { text: await session.approve(actionId), state: session.getState() });
+      return sendJson(res, 200, { text: await session.approve(actionId, requestId), state: session.getState() });
     }
     if (req.method === "POST" && req.url === "/api/reject") {
       const body = await readJson(req);
@@ -149,8 +160,11 @@ const server = createServer(async (req, res) => {
       return sendJson(res, 200, { text: session.reject(actionId), state: session.getState() });
     }
     return sendJson(res, 404, { error: "Not found" });
-  } catch (error) {
-    return sendJson(res, 400, { error: error instanceof Error ? error.message : String(error) });
+  } catch (error: unknown) {
+    metrics.requestFailed();
+    const safe = createErrorResponse(error, requestId);
+    logger.error("HTTP request failed.", { requestId, durationMs: Date.now() - startedAt, errorCode: safe.body.code });
+    return sendJson(res, safe.statusCode, safe.body);
   }
 });
 
