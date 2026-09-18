@@ -10,6 +10,7 @@ import { SafeToolExecutor } from "../agent/tools/SafeToolExecutor.js";
 import { SessionBudget } from "../agent/limits/SessionBudget.js";
 import { ToolRegistry } from "../agent/tools/ToolRegistry.js";
 import { SupervisedToolExecutor } from "../agent/supervisor/SupervisedToolExecutor.js";
+import { hashToolCall } from "../agent/security/ToolCallHash.js";
 
 const policy = {
   filesystem: { read: "allow", write: "workspace", delete: "approval" },
@@ -30,6 +31,16 @@ async function make() {
     name: "safe_echo",
     description: "Safe echo",
     risk: "green",
+    validateInput(input: unknown): string {
+      if (typeof input !== "string") throw new Error("Expected string.");
+      return input;
+    },
+    async execute(input: string) { return input; }
+  });
+  registry.register({
+    name: "red_echo",
+    description: "Red echo",
+    risk: "red",
     validateInput(input: unknown): string {
       if (typeof input !== "string") throw new Error("Expected string.");
       return input;
@@ -140,19 +151,20 @@ test("red tool stays blocked even with a valid approval", async () => {
       approvalId: "red-approval",
       sessionId: "session-1",
       actionId: "red-action",
-      argumentHash: "placeholder"
+      argumentHash: hashToolCall("red_echo", "hello")
     });
     await assert.rejects(
       () => supervisor.execute({
         sessionId: "session-1",
         actionId: "red-action",
         approvalId: "red-approval",
-        toolName: "yellow_echo",
+        toolName: "red_echo",
         input: "hello",
         signal: new AbortController().signal
       }),
-      /Approval is invalid or expired/
+      /APPROVAL_REQUIRED|Red tool requires explicit approval/
     );
+    assert.ok(approvals.get("red-approval"));
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
