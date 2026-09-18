@@ -9,6 +9,8 @@ export interface ApprovalRecord {
   createdAt: number;
   expiresAt: number;
   used: boolean;
+  userId?: string;
+  toolName?: string;
 }
 
 export class ApprovalStore {
