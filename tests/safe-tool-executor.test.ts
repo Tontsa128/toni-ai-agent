@@ -14,7 +14,7 @@ test("safe executor validates input and enforces session budget", async () => {
       if (typeof input !== "string") throw new Error("Input must be a string.");
       return input;
     },
-    async execute(input): Promise<string> { return input; }
+    async execute(input: string): Promise<string> { return input; }
   });
   const executor = new SafeToolExecutor(registry, new SessionBudget(1));
   const context = { sessionId: "session-1", signal: new AbortController().signal };
