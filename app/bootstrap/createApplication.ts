@@ -9,7 +9,8 @@ import { SqliteApprovalAdapter } from "../../agent/approvals/SqliteApprovalAdapt
 import { AgentOrchestrator } from "../../agent/core/AgentOrchestrator.js";
 import { SupervisedToolExecutor } from "../../agent/core/SupervisedToolExecutor.js";
 import { OpenAIProvider } from "../../agent/providers/OpenAIProvider.js";
-import { createDefaultToolRegistry, type DefaultToolRegistryOptions } from "../../agent/tools/DefaultToolRegistry.js";
+import { registerAllTools } from "../../agent/tools/registerAllTools.js";
+import type { DefaultToolRegistryOptions } from "../../agent/tools/DefaultToolRegistry.js";
 import { type ToolRegistry } from "../../agent/tools/ToolRegistry.js";
 import { SessionBudget } from "../../agent/limits/SessionBudget.js";
 import { SessionLock } from "../../agent/core/SessionLock.js";
@@ -93,7 +94,8 @@ export async function createApplication(workspace = process.cwd()): Promise<Appl
       }
     };
 
-    const registry = createDefaultToolRegistry(resolvedWorkspace, {
+    const registry = new (await import("../../agent/tools/ToolRegistry.js")).ToolRegistry();
+    const toolOptions: DefaultToolRegistryOptions = {
       workerLimits: {
         ...DEFAULT_WORKER_LIMITS,
         timeoutMs: config.commandTimeoutMs,
@@ -101,7 +103,8 @@ export async function createApplication(workspace = process.cwd()): Promise<Appl
         maxMemoryMb: config.workerMemoryMb
       },
       windowsJob
-    } satisfies DefaultToolRegistryOptions);
+    };
+    registerAllTools(registry, resolvedWorkspace, toolOptions);
 
     state.setPhase("tools_ready");
     const modelProvider = new OpenAIProvider(config.openAiModel);
