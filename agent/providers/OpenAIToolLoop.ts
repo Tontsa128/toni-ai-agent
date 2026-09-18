@@ -1,5 +1,10 @@
 import OpenAI from "openai";
 import type { AgentInput } from "../../app/AgentInput.js";
+import { AgentError } from "../errors/AgentError.js";
+import { CostBudget } from "../limits/CostBudget.js";
+import { ProviderBudget } from "../limits/ProviderBudget.js";
+import { estimateModelCost } from "./ModelPricing.js";
+import { filterSensitiveContent } from "../privacy/ContentFilter.js";
 
 export interface FunctionToolSpec {
   name: string;
@@ -44,12 +49,16 @@ export class OpenAIToolLoop {
   private readonly client: OpenAI;
   private readonly model: string;
   private readonly maxTurns: number;
+  private readonly costBudget?: CostBudget;
+  private readonly providerBudget?: ProviderBudget;
 
-  constructor(options: { model?: string; maxTurns?: number } = {}) {
+  constructor(options: { model?: string; maxTurns?: number; costBudget?: CostBudget; providerBudget?: ProviderBudget } = {}) {
     if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
     this.client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     this.model = options.model ?? process.env.OPENAI_MODEL ?? "gpt-5.6-luna";
     this.maxTurns = options.maxTurns ?? 8;
+    this.costBudget = options.costBudget;
+    this.providerBudget = options.providerBudget;
   }
 
   async run(
@@ -60,7 +69,7 @@ export class OpenAIToolLoop {
     previousResponseId?: string,
     requestId?: string
   ): Promise<ToolLoopResult> {
-    const response = await this.client.responses.create({
+    const response = await this.createResponse({
       model: this.model,
       ...(instructions ? { instructions } : {}),
       input: this.toResponsesInput(input),
@@ -77,7 +86,7 @@ export class OpenAIToolLoop {
     tools: FunctionToolSpec[],
     executor: ToolExecutor
   ): Promise<ToolLoopResult> {
-    const response = await this.client.responses.create({
+    const response = await this.createResponse({
       model: this.model,
       previous_response_id: responseId,
       input: [{
@@ -90,9 +99,28 @@ export class OpenAIToolLoop {
     return this.processResponse(response, tools, executor, 1, 1);
   }
 
+  private async createResponse(request: Parameters<OpenAI["responses"]["create"]>[0]): Promise<OpenAI.Responses.Response> {
+    this.providerBudget?.consume();
+    let response: OpenAI.Responses.Response;
+    try { response = await this.client.responses.create(request); }
+    catch (error: unknown) { throw new AgentError("MODEL_FAILED", "Model request failed.", true, { cause: error }); }
+    if (response.usage && this.costBudget) {
+      const inputTokens = response.usage.input_tokens ?? 0;
+      const outputTokens = response.usage.output_tokens ?? 0;
+      try {
+        this.costBudget.consume({ inputTokens, outputTokens, estimatedUsd: estimateModelCost(this.model, inputTokens, outputTokens) });
+      } catch (error: unknown) { throw new AgentError("MODEL_FAILED", "Session model budget exceeded.", false, { cause: error }); }
+    }
+    return response;
+  }
+
   private toResponsesInput(input: AgentInput) {
-    if (typeof input === "string") return input;
-    return [{ role: "user" as const, content: input }];
+    if (typeof input === "string") {
+      const filtered = filterSensitiveContent(input);
+      if (filtered.blocked) throw new AgentError("MODEL_FAILED", "Sensitive content was blocked before model processing.", false);
+      return filtered.value;
+    }
+    return [{ role: "user" as const, content: input.map(part => part.type === "input_text" ? { ...part, text: filterSensitiveContent(part.text).value } : part) }];
   }
 
   private async processResponse(
