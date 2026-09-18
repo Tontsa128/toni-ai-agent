@@ -11,7 +11,7 @@ import { SupervisedToolExecutor } from "../../agent/core/SupervisedToolExecutor.
 import { OpenAIProvider } from "../../agent/providers/OpenAIProvider.js";
 import { registerAllTools } from "../../agent/tools/registerAllTools.js";
 import type { DefaultToolRegistryOptions } from "../../agent/tools/DefaultToolRegistry.js";
-import { type ToolRegistry } from "../../agent/tools/ToolRegistry.js";
+import { ToolRegistry } from "../../agent/tools/ToolRegistry.js";
 import { SessionBudget } from "../../agent/limits/SessionBudget.js";
 import { SessionLock } from "../../agent/core/SessionLock.js";
 import { CancellationRegistry } from "../../agent/core/CancellationRegistry.js";
@@ -94,7 +94,7 @@ export async function createApplication(workspace = process.cwd()): Promise<Appl
       }
     };
 
-    const registry = new (await import("../../agent/tools/ToolRegistry.js")).ToolRegistry();
+    const registry = new ToolRegistry();
     const toolOptions: DefaultToolRegistryOptions = {
       workerLimits: {
         ...DEFAULT_WORKER_LIMITS,
