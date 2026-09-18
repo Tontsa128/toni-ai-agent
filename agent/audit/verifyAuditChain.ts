@@ -1,1 +1,1 @@
-import type Database from "better-sqlite3"; import { AuditRepository } from "../../storage/repositories/AuditRepository.js"; export function verifyAuditChain(db:Database.Database):void{const r=new AuditRepository(db).verify();if(!r.ok)throw new Error(r.error);}
+import type Database from "better-sqlite3";import { AuditRepository } from "../../storage/repositories/AuditRepository.js";export function verifyAuditChain(db:Database.Database):void{const r=new AuditRepository(db).verify();if(!r.ok)throw new Error(r.error);}
