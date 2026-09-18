@@ -3,12 +3,12 @@
 A release is production-ready only when every required gate is green.
 
 ## Build and dependency integrity
-- [ ] npm install completes without errors.
+- [x] npm ci completes successfully from the committed lockfile.
 - [ ] npm run check passes.
 - [ ] npm run build passes.
 - [ ] npm test passes.
 - [ ] Dependency audit has no high/critical findings requiring an accepted exception.
-- [ ] A committed package-lock.json is present before production release; CI must use npm ci.
+- [x] A committed package-lock.json is present and CI uses npm ci.
 
 ## Runtime safety
 - [ ] Production requires OPENAI_API_KEY, OPENAI_MODEL, TONI_AUTH_TOKEN and TONI_DATA_ROOT.
