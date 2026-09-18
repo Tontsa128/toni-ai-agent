@@ -76,7 +76,7 @@ export class OpenAIToolLoop {
       ...(previousResponseId ? { previous_response_id: previousResponseId } : {}),
       tools: this.toolDefinitions(tools)
     });
-    return this.processResponse(response, tools, executor, 1, 0);
+    return this.processResponse(response, tools, executor, 1, 0, requestId);
   }
 
   async resumeApprovedCall(
@@ -84,7 +84,8 @@ export class OpenAIToolLoop {
     callId: string,
     result: ToolExecutionResult,
     tools: FunctionToolSpec[],
-    executor: ToolExecutor
+    executor: ToolExecutor,
+    requestId?: string
   ): Promise<ToolLoopResult> {
     const response = await this.createResponse({
       model: this.model,
@@ -96,10 +97,10 @@ export class OpenAIToolLoop {
       }],
       tools: this.toolDefinitions(tools)
     });
-    return this.processResponse(response, tools, executor, 1, 1);
+    return this.processResponse(response, tools, executor, 1, 1, requestId);
   }
 
-  private async createResponse(request: Parameters<OpenAI["responses"]["create"]>[0]): Promise<OpenAI.Responses.Response> {
+  private async createResponse(request: Parameters<typeof this.client.responses.create>[0]): Promise<OpenAI.Responses.Response> {
     this.providerBudget?.consume();
     let response: OpenAI.Responses.Response;
     try { response = await this.client.responses.create(request); }
@@ -128,7 +129,8 @@ export class OpenAIToolLoop {
     tools: FunctionToolSpec[],
     executor: ToolExecutor,
     initialTurn: number,
-    initialToolCalls: number
+    initialToolCalls: number,
+    requestId?: string
   ): Promise<ToolLoopResult> {
     let response = initialResponse;
     let toolCalls = initialToolCalls;
@@ -160,7 +162,7 @@ export class OpenAIToolLoop {
         });
       }
 
-      response = await this.client.responses.create({
+      response = await this.createResponse({
         model: this.model,
         previous_response_id: response.id,
         input: outputs,
