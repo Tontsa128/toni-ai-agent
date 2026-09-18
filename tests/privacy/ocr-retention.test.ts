@@ -1,0 +1,1 @@
+import test from "node:test";import assert from "node:assert/strict";import { OcrRetention } from "../../agent/privacy/OcrRetention.js";test("OCR text expires",async()=>{const r=new OcrRetention(1);r.set("temporary text");await new Promise(resolve=>setTimeout(resolve,5));assert.equal(r.get(),undefined);});
