@@ -1,15 +1,16 @@
 import { randomUUID } from "node:crypto";
 import type { AgentContext } from "../types.js";
-import type { ToolInvocation } from "../sandbox/types.js";
 import { AgentOrchestrator } from "./AgentOrchestrator.js";
-import { CancellationRegistry } from "./CancellationRegistry.js";
-import { SessionLock } from "./SessionLock.js";
 import { SessionBudget } from "../limits/SessionBudget.js";
 import { SafeToolExecutor } from "../tools/SafeToolExecutor.js";
 import { ToolRegistry } from "../tools/ToolRegistry.js";
 import { AuditLog } from "../audit/AuditLog.js";
 import { ApprovalStore } from "../approvals/ApprovalStore.js";
-import { SupervisedToolExecutor as IntegratedSupervisedToolExecutor, type SupervisedToolRequest } from "../supervisor/SupervisedToolExecutor.js";
+import {
+  SupervisedToolExecutor as IntegratedSupervisedToolExecutor,
+  type AuditSink,
+  type ApprovalStorePort
+} from "../supervisor/SupervisedToolExecutor.js";
 import type { ToolExecutionContext, ToolExecutionResult } from "../providers/OpenAIToolLoop.js";
 
 export class SupervisedToolExecutor {
@@ -25,8 +26,8 @@ export class SupervisedToolExecutor {
     audit?: AuditLog,
     maxToolCalls = 8
   ) {
-    const approvalStore = approvals ?? new ApprovalStoreCompat();
-    const auditLog = audit ?? new NoopAuditLog();
+    const approvalStore: ApprovalStorePort = approvals ?? new ApprovalStoreCompat();
+    const auditLog: AuditSink = audit ?? new NoopAuditLog();
     const safeExecutor = new SafeToolExecutor(registry, new SessionBudget(maxToolCalls));
     this.integrated = new IntegratedSupervisedToolExecutor(
       registry,
@@ -98,24 +99,32 @@ export class SupervisedToolExecutor {
   }
 }
 
-class ApprovalStoreCompat implements import("../supervisor/ApprovalToken.js").ApprovalStoreWriter {
+class ApprovalStoreCompat implements ApprovalStorePort {
   private readonly records = new Map<string, import("../approvals/ApprovalStore.js").ApprovalRecord>();
+
   async put(input: Omit<import("../approvals/ApprovalStore.js").ApprovalRecord, "createdAt" | "expiresAt" | "used">) {
     const now = Date.now();
     const record = { ...input, createdAt: now, expiresAt: now + 120_000, used: false };
     this.records.set(record.approvalId, record);
     return record;
   }
-  get(id: string) { const record = this.records.get(id); return record && !record.used && record.expiresAt > Date.now() ? { ...record } : undefined; }
+
+  get(id: string) {
+    const record = this.records.get(id);
+    return record && !record.used && record.expiresAt > Date.now() ? { ...record } : undefined;
+  }
+
   async consume(id: string, sessionId: string, actionId: string, argumentHash: string) {
     const record = this.get(id);
-    if (!record || record.sessionId !== sessionId || record.actionId !== actionId || record.argumentHash !== argumentHash) throw new Error("Approval is invalid.");
+    if (!record || record.sessionId !== sessionId || record.actionId !== actionId || record.argumentHash !== argumentHash) {
+      throw new Error("Approval is invalid.");
+    }
     record.used = true;
     this.records.set(id, record);
     return record;
   }
 }
 
-class NoopAuditLog implements import("../supervisor/SupervisedToolExecutor.js").AuditSink {
-  append(_event: Parameters<import("../supervisor/SupervisedToolExecutor.js").AuditSink["append"]>[0]): void {}
+class NoopAuditLog implements AuditSink {
+  append(_event: Parameters<AuditSink["append"]>[0]): void {}
 }

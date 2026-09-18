@@ -1,16 +1,14 @@
-import { randomUUID } from "node:crypto";
 import type { AgentContext, AgentAction } from "../types.js";
 import type { ToolInvocation } from "../sandbox/types.js";
 import { AgentOrchestrator } from "../core/AgentOrchestrator.js";
-import { ApprovalStore, type ApprovalRecord } from "../approvals/ApprovalStore.js";
-import { AuditLog } from "../audit/AuditLog.js";
+import type { ApprovalRecord } from "../approvals/ApprovalStore.js";
 import { AgentError } from "../errors/AgentError.js";
 import { CancellationRegistry } from "../core/CancellationRegistry.js";
 import { SessionLock } from "../core/SessionLock.js";
 import { SafeToolExecutor, type SafeToolExecutionResult } from "../tools/SafeToolExecutor.js";
 import { ToolRegistry } from "../tools/ToolRegistry.js";
 import { hashToolCall } from "../security/ToolCallHash.js";
-import { createApproval, type ApprovalStoreWriter } from "./ApprovalToken.js";
+import { createApproval } from "./ApprovalToken.js";
 import { decideToolPermission } from "./ToolPermission.js";
 
 export interface SupervisedToolRequest {
@@ -27,6 +25,22 @@ export interface SupervisedToolResult extends SafeToolExecutionResult {
   approved: boolean;
   actionId: string;
   approvalId?: string;
+}
+
+export interface ApprovalStorePort {
+  put(input: {
+    approvalId: string;
+    sessionId: string;
+    actionId: string;
+    argumentHash: string;
+  }): Promise<ApprovalRecord>;
+  get(approvalId: string): ApprovalRecord | undefined;
+  consume(
+    approvalId: string,
+    sessionId: string,
+    actionId: string,
+    argumentHash: string
+  ): Promise<ApprovalRecord>;
 }
 
 interface PendingExecution {
@@ -59,7 +73,7 @@ export class SupervisedToolExecutor {
   public constructor(
     private readonly registry: ToolRegistry,
     private readonly executor: SafeToolExecutor,
-    private readonly approvals: ApprovalStoreWriter,
+    private readonly approvals: ApprovalStorePort,
     private readonly audit: AuditSink,
     private readonly orchestrator: AgentOrchestrator,
     private readonly context: AgentContext
@@ -107,7 +121,7 @@ export class SupervisedToolExecutor {
 
     const tool = this.registry.get(request.toolName);
     const argumentHash = hashToolCall(request.toolName, request.input);
-    const candidate = request.approvalId ? await this.getApproval(request.approvalId) : undefined;
+    const candidate = request.approvalId ? this.approvals.get(request.approvalId) : undefined;
     const hasValidApproval = candidate !== undefined
       && candidate.sessionId === request.sessionId
       && candidate.actionId === request.actionId
@@ -158,10 +172,7 @@ export class SupervisedToolExecutor {
           request.input
         );
         this.pending.set(request.actionId, { request, approvalId: created.approvalId });
-        this.orchestrator.approvals.request({
-          action,
-          reason: permission.reason
-        });
+        this.orchestrator.approvals.request({ action, reason: permission.reason });
         this.audit.append({
           type: "approval_requested",
           sessionId: request.sessionId,
@@ -268,12 +279,5 @@ export class SupervisedToolExecutor {
     } finally {
       this.cancellation.remove(operationId);
     }
-  }
-
-  private async getApproval(approvalId: string): Promise<ApprovalRecord | undefined> {
-    if (this.approvals instanceof ApprovalStore) {
-      return this.approvals.get(approvalId);
-    }
-    return undefined;
   }
 }
