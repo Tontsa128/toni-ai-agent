@@ -1,0 +1,3 @@
+export interface ModelPricing{inputUsdPerMillion:number;outputUsdPerMillion:number}
+const PRICING:Record<string,ModelPricing>={"gpt-5.6-luna":{inputUsdPerMillion:.2,outputUsdPerMillion:1.2},"gpt-5.6-terra":{inputUsdPerMillion:2,outputUsdPerMillion:12},"gpt-5.6-sol":{inputUsdPerMillion:4,outputUsdPerMillion:20}};
+export function estimateModelCost(model:string,inputTokens:number,outputTokens:number):number{const p=PRICING[model];if(!p)throw new Error(`No pricing configured for model: ${model}`);return inputTokens/1_000_000*p.inputUsdPerMillion+outputTokens/1_000_000*p.outputUsdPerMillion;}
