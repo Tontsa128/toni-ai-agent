@@ -5,7 +5,8 @@ export type AgentErrorCode =
   | "BUDGET_EXCEEDED"
   | "APPROVAL_EXPIRED"
   | "APPROVAL_REQUIRED"
-  | "PERMISSION_DENIED";
+  | "PERMISSION_DENIED"
+  | "MODEL_FAILED";
 
 export class AgentError extends Error {
   constructor(
