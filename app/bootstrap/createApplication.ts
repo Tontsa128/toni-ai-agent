@@ -21,6 +21,8 @@ import { StartupState } from "../lifecycle/StartupState.js";
 import { WindowsJobController, type WindowsJobOptions } from "../../agent/worker/WindowsJobController.js";
 import { DEFAULT_WORKER_LIMITS } from "../../agent/worker/WorkerLimits.js";
 import { InteractiveSession } from "../InteractiveSession.js";
+import { Logger } from "../observability/Logger.js";
+import { Metrics } from "../observability/Metrics.js";
 
 export interface ApplicationContext {
   workspace: string;
@@ -40,6 +42,8 @@ export interface ApplicationContext {
   createSessionCancellation: () => CancellationRegistry;
   createInteractiveSession: (userId?: string) => InteractiveSession;
   windowsJob?: WindowsJobOptions;
+  logger: Logger;
+  metrics: Metrics;
 }
 
 export async function createApplication(workspace = process.cwd()): Promise<ApplicationContext> {
@@ -47,6 +51,8 @@ export async function createApplication(workspace = process.cwd()): Promise<Appl
   let database: ToniDatabase | undefined;
   try {
     const config = loadConfig();
+    const logger = new Logger(config.environment === "production" ? "info" : "debug");
+    const metrics = new Metrics();
     state.setPhase("config_loaded");
 
     const resolvedWorkspace = await realpath(resolve(workspace));
@@ -179,6 +185,8 @@ export async function createApplication(workspace = process.cwd()): Promise<Appl
       createSessionLock: () => new SessionLock(),
       createSessionCancellation: () => new CancellationRegistry(),
       ...(windowsJob ? { windowsJob } : {}),
+      logger,
+      metrics,
       createInteractiveSession: (userId = "local-user") => {
         const auditSink = {
           append: (event: { type: string; sessionId: string; actionId: string; summary?: string; reason?: string }) =>
@@ -196,7 +204,9 @@ export async function createApplication(workspace = process.cwd()): Promise<Appl
           { mode: "coding", workspace: resolvedWorkspace, userRequest: "web session", userId },
           approvalStore,
           auditSink,
-          config.maxToolCalls
+          config.maxToolCalls,
+          logger,
+          metrics
         );
         return new InteractiveSession({
           model: config.openAiModel,
