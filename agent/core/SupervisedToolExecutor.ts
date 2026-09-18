@@ -4,7 +4,6 @@ import { AgentOrchestrator } from "./AgentOrchestrator.js";
 import { SessionBudget } from "../limits/SessionBudget.js";
 import { SafeToolExecutor } from "../tools/SafeToolExecutor.js";
 import { ToolRegistry } from "../tools/ToolRegistry.js";
-import type { AuditSink, ApprovalStorePort } from "../supervisor/SupervisedToolExecutor.js";
 import {
   SupervisedToolExecutor as IntegratedSupervisedToolExecutor,
   type AuditSink,
