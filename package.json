@@ -14,11 +14,19 @@
     "dev:plan": "node --import tsx app/cli.ts",
     "dev:web": "node --watch --import tsx app/local-web-server.ts"
   },
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "dependencies": {
     "docx": "^9.7.1",
     "openai": "^7.9.0",
-    "playwright": "^1.55.0"
+    "playwright": "^1.55.0",
+    "better-sqlite3": "^11.10.0"
   },
-  "devDependencies": { "@types/node": "^22.15.0", "tsx": "^4.19.0", "typescript": "^5.8.0" }
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0",
+    "@types/better-sqlite3": "^7.6.13"
+  }
 }
