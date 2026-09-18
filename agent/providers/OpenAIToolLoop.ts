@@ -63,7 +63,7 @@ export class OpenAIToolLoop {
       response = await this.client.responses.create({ ...request, signal: timeout });
     } catch (error: unknown) {
       const message = timeout.aborted ? "Model request timed out." : "Model request failed.";
-      throw new AgentError("MODEL_FAILED", message, true, { cause: error });
+      throw new AgentError("MODEL_FAILED", message, !timeout.aborted, { cause: error });
     }
     if (response.usage && this.costBudget) {
       const inputTokens = response.usage.input_tokens ?? 0;
