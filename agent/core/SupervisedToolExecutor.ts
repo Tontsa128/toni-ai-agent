@@ -10,6 +10,8 @@ import {
   type ApprovalStorePort
 } from "../supervisor/SupervisedToolExecutor.js";
 import type { ToolExecutionContext, ToolExecutionResult } from "../providers/OpenAIToolLoop.js";
+import { Logger } from "../../app/observability/Logger.js";
+import { Metrics } from "../../app/observability/Metrics.js";
 
 export class SupervisedToolExecutor {
   readonly continuations: { listActionIds: () => string[] };
@@ -22,18 +24,22 @@ export class SupervisedToolExecutor {
     private readonly context: AgentContext,
     approvals?: ApprovalStorePort,
     audit?: AuditSink,
-    maxToolCalls = 8
+    maxToolCalls = 8,
+    logger?: Logger,
+    metrics?: Metrics
   ) {
     const approvalStore: ApprovalStorePort = approvals ?? new ApprovalStoreCompat();
     const auditLog: AuditSink = audit ?? new NoopAuditLog();
-    const safeExecutor = new SafeToolExecutor(registry, new SessionBudget(maxToolCalls));
+    const safeExecutor = new SafeToolExecutor(registry, new SessionBudget(maxToolCalls), logger, metrics);
     this.integrated = new IntegratedSupervisedToolExecutor(
       registry,
       safeExecutor,
       approvalStore,
       auditLog,
       orchestrator,
-      context
+      context,
+      logger,
+      metrics
     );
     this.continuations = { listActionIds: () => this.integrated.listPendingActionIds() };
   }
@@ -52,7 +58,8 @@ export class SupervisedToolExecutor {
         actionId: randomUUID(),
         toolName: input.name,
         input: parsed,
-        signal: new AbortController().signal
+        signal: new AbortController().signal,
+        requestId: input.requestId
       });
       return {
         ok: result.executed,
