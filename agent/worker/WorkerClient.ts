@@ -34,7 +34,7 @@ export class WorkerClient {
       const cleanup = () => {
         if (timer) clearTimeout(timer);
         signal.removeEventListener("abort", onAbort);
-        if (jobAttached) void job?.terminate().catch(() => {});
+        if (job) void job.terminate().catch(() => {});
       };
       const finishResolve = (response: WorkerResponse) => {
         if (settled) return;
