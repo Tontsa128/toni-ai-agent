@@ -50,9 +50,10 @@ export class AuditRepository {
   public verify(): { ok: true; count: number } | { ok: false; count: number; error: string } {
     const rows = this.db.prepare("SELECT * FROM audit_events ORDER BY id ASC").all() as AuditRow[];
     let previousHash = "";
+    let verified = 0;
     for (const row of rows) {
       if ((row.previous_hash ?? "") !== previousHash) {
-        return { ok: false, count: row.id - 1, error: "Audit hash chain predecessor mismatch at event " + row.id + "." };
+        return { ok: false, count: verified, error: "Audit hash chain predecessor mismatch at event " + row.id + "." };
       }
       const expected = hashAuditEvent({
         type: row.event_type,
@@ -68,6 +69,7 @@ export class AuditRepository {
         return { ok: false, count: row.id - 1, error: "Audit hash mismatch at event " + row.id + "." };
       }
       previousHash = row.hash;
+      verified += 1;
     }
     return { ok: true, count: rows.length };
   }
