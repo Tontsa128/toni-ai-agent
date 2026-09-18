@@ -2,11 +2,14 @@ import path from "node:path";
 import type { ExecutionRequest, ExecutionResult, SandboxPolicy } from "./types.js";
 import { ExecutionSandbox } from "./ExecutionSandbox.js";
 import { WorkerClient } from "../worker/WorkerClient.js";
-import { DEFAULT_WORKER_LIMITS } from "../worker/WorkerLimits.js";
+import { DEFAULT_WORKER_LIMITS, type WorkerLimits } from "../worker/WorkerLimits.js";
+import { WindowsJobController, type WindowsJobOptions } from "../worker/WindowsJobController.js";
 
 export interface TerminalExecutorOptions {
   policy: SandboxPolicy;
   executableAliases?: Record<string, string>;
+  workerLimits?: WorkerLimits;
+  windowsJob?: WindowsJobOptions;
 }
 
 /** Executes preflight-approved commands outside the main process through a bounded worker. */
@@ -18,11 +21,16 @@ export class TerminalExecutor {
   constructor(private readonly options: TerminalExecutorOptions) {
     this.sandbox=new ExecutionSandbox(options.policy);
     this.aliases=options.executableAliases??{};
+    const limits = options.workerLimits ?? DEFAULT_WORKER_LIMITS;
+    const windowsJob = options.windowsJob && process.platform === "win32" ? new WindowsJobController(options.windowsJob) : undefined;
     this.workerClient=new WorkerClient({
-      ...DEFAULT_WORKER_LIMITS,
+      limits: {
+        ...limits,
       timeoutMs: Math.min(DEFAULT_WORKER_LIMITS.timeoutMs, options.policy.maxExecutionMs),
       maxOutputBytes: options.policy.maxOutputBytes,
-      maxErrorBytes: Math.min(DEFAULT_WORKER_LIMITS.maxErrorBytes, options.policy.maxOutputBytes)
+        maxErrorBytes: Math.min(limits.maxErrorBytes, options.policy.maxOutputBytes)
+      },
+      windowsJob
     });
   }
 
