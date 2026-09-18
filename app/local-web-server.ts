@@ -2,6 +2,9 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { readFile } from "node:fs/promises";
 import { extname, resolve } from "node:path";
 import { createInteractiveSession, initializeAgentRuntime } from "./startup.js";
+import { handleHealthRoute } from "./health/HealthRoutes.js";
+import { installShutdown } from "./lifecycle/installShutdown.js";
+import { timingSafeEqual } from "node:crypto";
 import { attachmentToContent, type AgentContentPart } from "./AgentInput.js";
 import { ScreenContextAssistant } from "../agent/vision/ScreenContextAssistant.js";
 import { ScreenMonitor } from "../agent/vision/ScreenMonitor.js";
@@ -65,13 +68,14 @@ const screenMonitor = process.platform === "win32"
 
 const server = createServer(async (req, res) => {
   try {
+    if (handleHealthRoute(req, res, runtime.state)) return;
+    if (!runtime.state.isReady()) return sendJson(res, 503, { error: "Application is not ready.", phase: runtime.state.getPhase() });
+    if (!isAuthorized(req.headers.authorization, config.authToken, config.environment)) {
+      return sendJson(res, 401, { error: "Unauthorized" });
+    }
     if (req.method === "GET" && req.url === "/") {
       const html = await readFile(resolve(workspace, "app/public/agent.html"), "utf8");
       return send(res, 200, "text/html; charset=utf-8", html);
-    }
-    if (req.method === "GET" && req.url === "/health") {
-      const health = healthService.getStatus();
-      return sendJson(res, health.status === "ok" ? 200 : 503, health);
     }
     if (req.method === "GET" && req.url === "/api/status") {
       const screenOcr = screenOcrProvider
@@ -151,8 +155,13 @@ const server = createServer(async (req, res) => {
 });
 
 const session = createInteractiveSession(runtime);
-
+installShutdown(server, runtime);
+server.once("error", (error) => {
+  runtime.state.fail(error instanceof Error ? error.message : "Server failed to start.");
+  runtime.database.close();
+});
 server.listen(port, config.host, () => {
+  runtime.state.setPhase("server_ready");
   console.log(`Toni AI Agent UI: http://${config.host}:${port}`);
   console.log(`Workspace: ${workspace}`);
   console.log(`Screen monitoring: ${screenMonitor ? "available, OFF by default" : "unavailable on this OS"}`);
@@ -198,4 +207,14 @@ function send(res: ServerResponse, status: number, contentType: string, body: st
 
 function sendJson(res: ServerResponse, status: number, body: unknown) {
   send(res, status, "application/json; charset=utf-8", JSON.stringify(body));
+}
+
+function isAuthorized(header: string | undefined, expected: string | undefined, environment: string): boolean {
+  if (environment !== "production") return true;
+  if (!header || !expected) return false;
+  const prefix = "Bearer ";
+  if (!header.startsWith(prefix)) return false;
+  const supplied = Buffer.from(header.slice(prefix.length), "utf8");
+  const actual = Buffer.from(expected, "utf8");
+  return supplied.length === actual.length && timingSafeEqual(supplied, actual);
 }
