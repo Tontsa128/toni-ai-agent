@@ -83,10 +83,13 @@ export class PermissionEngine {
   }
 
   private riskForPermission(permission: string, fallback: ActionRisk): ActionRisk {
+    // A red classification is a hard safety floor. Policy evaluation must never
+    // downgrade it to yellow/green merely because the fallback permission is approval.
+    if (fallback === "red") return "red";
     if (NEVER_AUTO.has(permission)) return "red";
     if (ALLOWED.has(permission)) return "green";
     if (permission === "approval") return "yellow";
-    return fallback === "red" ? "red" : "yellow";
+    return "yellow";
   }
 
   private commandName(input: unknown): string | undefined {
