@@ -1,5 +1,3 @@
-import type { AgentError } from "../errors/AgentError.js";
-
 export type ToolRisk = "green" | "yellow" | "red";
 export interface ToolExecutionContext { sessionId: string; signal: AbortSignal; }
 
