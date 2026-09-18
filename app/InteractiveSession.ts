@@ -151,7 +151,7 @@ export class InteractiveSession {
     }
   }
 
-  async approve(actionId: string): Promise<string> {
+  async approve(actionId: string, requestId?: string): Promise<string> {
     if (this.pendingToolApproval?.actionId === actionId) {
       const pending = this.pendingToolApproval;
       const result = await this.executor.approveAndResume(actionId);
@@ -186,7 +186,7 @@ export class InteractiveSession {
     throw new Error(`No pending approval found for action ${actionId}`);
   }
 
-  async ask(input: AgentInput): Promise<ToolLoopResult> {
+  async ask(input: AgentInput, requestId?: string): Promise<ToolLoopResult> {
     if (this.pendingToolApproval) throw new Error(`Approval required first: /approve ${this.pendingToolApproval.actionId}`);
     const repair = this.codingWorkflow?.getRepairSnapshot();
     if (repair?.state === "waiting_approval") throw new Error(`Repair approval required first: /approve ${repair.approval?.actionId ?? "<actionId>"}`);
@@ -195,7 +195,7 @@ export class InteractiveSession {
       "Inspect before editing. Älä arvaa. Käytä vain annettuja työkaluja.",
       "Työkalut ovat turvallisuusvalvottuja. Hyväksyntää vaativaa toimintoa ei saa kiertää.",
       "Älä väitä tehneesi muutosta, jota työkalu ei vahvista.", `Työtila: ${this.options.workspace}`
-    ].join("\n"), this.previousResponseId);
+    ].join("\n"), this.previousResponseId, requestId);
     this.previousResponseId = result.responseId;
     this.pendingToolApproval = result.pendingApproval;
     this.requestCount += 1;
