@@ -162,7 +162,7 @@ test("red tool stays blocked even with a valid approval", async () => {
         input: "hello",
         signal: new AbortController().signal
       }),
-      /APPROVAL_REQUIRED|Red tool requires explicit approval/
+      /Red tool is blocked by policy|APPROVAL_REQUIRED|Red tool requires explicit approval/
     );
     assert.ok(approvals.get("red-approval"));
   } finally {
