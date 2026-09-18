@@ -2,6 +2,7 @@ import { OpenAIToolLoop, type ToolLoopResult, type PendingToolApproval } from ".
 import { SupervisedToolExecutor } from "../agent/core/SupervisedToolExecutor.js";
 import { AgentOrchestrator } from "../agent/core/AgentOrchestrator.js";
 import { createDefaultToolRegistry, defaultFunctionToolSpecs } from "../agent/tools/DefaultToolRegistry.js";
+import type { ToolRegistry } from "../agent/tools/ToolRegistry.js";
 import type { PermissionPolicy } from "../agent/core/PermissionEngine.js";
 import type { ResumableCodingRepairCoordinatorOptions, RepairSessionPersistenceOptions, RepairAuditOptions } from "../agent/coding/CodingRepairCoordinator.js";
 import { CodingWorkflow } from "./CodingWorkflow.js";
@@ -27,6 +28,9 @@ export interface InteractiveSessionOptions {
   policy?: PermissionPolicy;
   repair?: InteractiveRepairOptions;
   codingWorkflow?: CodingWorkflow;
+  orchestrator?: AgentOrchestrator;
+  executor?: SupervisedToolExecutor;
+  toolRegistry?: ToolRegistry;
 }
 
 export interface SessionReply { kind: "command" | "model" | "tool"; text: string; exit?: boolean; }
@@ -71,8 +75,9 @@ export class InteractiveSession {
   constructor(private readonly options: InteractiveSessionOptions) {
     this.model = options.model ?? process.env.OPENAI_MODEL ?? "gpt-5.6-luna";
     const policy = options.policy ?? FALLBACK_POLICY;
-    this.orchestrator = new AgentOrchestrator(policy);
-    this.executor = new SupervisedToolExecutor(this.orchestrator, createDefaultToolRegistry(options.workspace), {
+    this.orchestrator = options.orchestrator ?? new AgentOrchestrator(policy);
+    const registry = options.toolRegistry ?? createDefaultToolRegistry(options.workspace);
+    this.executor = options.executor ?? new SupervisedToolExecutor(this.orchestrator, registry, {
       mode: "coding", workspace: options.workspace, userRequest: "interactive session"
     });
     if (options.codingWorkflow) this.codingWorkflow = options.codingWorkflow;
