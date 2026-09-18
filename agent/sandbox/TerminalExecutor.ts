@@ -23,15 +23,16 @@ export class TerminalExecutor {
     this.aliases=options.executableAliases??{};
     const limits = options.workerLimits ?? DEFAULT_WORKER_LIMITS;
     const windowsJob = options.windowsJob && process.platform === "win32" ? options.windowsJob : undefined;
-    this.workerClient=new WorkerClient({
+    const workerOptions: ConstructorParameters<typeof WorkerClient>[0] = {
       limits: {
         ...limits,
       timeoutMs: Math.min(DEFAULT_WORKER_LIMITS.timeoutMs, options.policy.maxExecutionMs),
       maxOutputBytes: options.policy.maxOutputBytes,
         maxErrorBytes: Math.min(limits.maxErrorBytes, options.policy.maxOutputBytes)
-      },
-      windowsJob
-    });
+      }
+    };
+    if (windowsJob) workerOptions.windowsJob = windowsJob;
+    this.workerClient=new WorkerClient(workerOptions);
   }
 
   async run(request: ExecutionRequest): Promise<ExecutionResult> {
@@ -46,7 +47,7 @@ export class TerminalExecutor {
     if(!preflight.ok) return preflight;
     const started=Date.now();
     try {
-      const response=await this.workerClient.run({command:executable,args,cwd}, request.signal ?? new AbortController().signal, request.requestId);
+      const response=await this.workerClient.run({command:executable,args,cwd}, request.signal ?? new AbortController().signal, request.requestId ?? undefined);
       return {
         ok:response.ok, exitCode:response.exitCode??null, stdout:response.stdout??"",
         stderr:response.stderr??"", durationMs:Date.now()-started, blocked:false,
