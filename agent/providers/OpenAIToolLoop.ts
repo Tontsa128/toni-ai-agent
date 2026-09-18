@@ -12,6 +12,7 @@ export interface ToolExecutionContext {
   name: string;
   argumentsJson: string;
   callId: string;
+  requestId?: string;
 }
 
 export interface ToolExecutionResult {
@@ -56,7 +57,8 @@ export class OpenAIToolLoop {
     tools: FunctionToolSpec[],
     executor: ToolExecutor,
     instructions?: string,
-    previousResponseId?: string
+    previousResponseId?: string,
+    requestId?: string
   ): Promise<ToolLoopResult> {
     const response = await this.client.responses.create({
       model: this.model,
@@ -113,7 +115,7 @@ export class OpenAIToolLoop {
       for (const item of calls) {
         if (item.type !== "function_call") continue;
         toolCalls += 1;
-        const result = await executor.execute({ name: item.name, argumentsJson: item.arguments, callId: item.call_id });
+        const result = await executor.execute({ name: item.name, argumentsJson: item.arguments, callId: item.call_id, requestId });
         if (!result.approved && this.isApprovalRequired(result.output)) {
           return {
             responseId: response.id,
