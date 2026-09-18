@@ -16,7 +16,11 @@ export class ToolRegistry {
     if (this.tools.has(tool.name)) throw new Error(`Tool already registered: ${tool.name}`);
     this.tools.set(tool.name, tool);
   }
-  getRisk(name: string): ToolRisk {\n    return this.get(name).risk;\n  }\n\n  get(name: string): ToolDefinition {
+  getRisk(name: string): ToolRisk {
+    return this.get(name).risk;
+  }
+
+  get(name: string): ToolDefinition {
     const tool = this.tools.get(name);
     if (!tool) throw new Error(`Tool not found: ${name}`);
     return tool;
