@@ -100,7 +100,7 @@ export class InteractiveSession {
   }
 
   private ensureToolLoop(): OpenAIToolLoop {
-    if (!this.toolLoop) this.toolLoop = new OpenAIToolLoop({ model: this.model, costBudget: this.options.costBudget, providerBudget: this.options.providerBudget });
+    if (!this.toolLoop) this.toolLoop = new OpenAIToolLoop({ model: this.model, costBudget: this.options.costBudget ?? new CostBudget(20_000, 5_000, 1), providerBudget: this.options.providerBudget ?? new ProviderBudget(20) });
     return this.toolLoop;
   }
 
