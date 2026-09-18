@@ -175,7 +175,7 @@ export async function createApplication(workspace = process.cwd()): Promise<Appl
       createSessionBudget: () => new SessionBudget(config.maxToolCalls),
       createSessionLock: () => new SessionLock(),
       createSessionCancellation: () => new CancellationRegistry(),
-      windowsJob,
+      ...(windowsJob ? { windowsJob } : {}),
       createInteractiveSession: (userId = "local-user") => {
         const auditSink = {
           append: (event: { type: string; sessionId: string; actionId: string; summary?: string; reason?: string }) =>
