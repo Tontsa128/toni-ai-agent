@@ -13,6 +13,12 @@ export interface AppConfig {
   maxToolCalls: number;
   commandTimeoutMs: number;
   screenMonitoringEnabled: boolean;
+  authToken?: string;
+  workerMemoryMb: number;
+  workerMaxProcesses: number;
+  workerCpuTimeMs: number;
+  windowsJobHelperPath?: string;
+  windowsTrustedRoot: string;
 }
 
 export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -22,9 +28,9 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
   const openAiModel = source.OPENAI_MODEL?.trim();
   if (!openAiModel) throw new Error("OPENAI_MODEL is required.");
   const openAiApiKey = source.OPENAI_API_KEY?.trim();
-  if (environment === "production" && !openAiApiKey) {
-    throw new Error("OPENAI_API_KEY is required in production.");
-  }
+  if (environment === "production" && !openAiApiKey) throw new Error("OPENAI_API_KEY is required in production.");
+  const authToken = source.TONI_AUTH_TOKEN?.trim();
+  if (environment === "production" && !authToken) throw new Error("TONI_AUTH_TOKEN is required in production.");
   return {
     environment,
     host: source.HOST?.trim() || "127.0.0.1",
@@ -35,7 +41,13 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
     maxRequestBytes: parseInteger(source.TONI_MAX_REQUEST_BYTES, 1_048_576, 1_024, 10_485_760),
     maxToolCalls: parseInteger(source.TONI_MAX_TOOL_CALLS, 8, 1, 100),
     commandTimeoutMs: parseInteger(source.TONI_COMMAND_TIMEOUT_MS, 30_000, 100, 300_000),
-    screenMonitoringEnabled: source.TONI_SCREEN_MONITORING === "true"
+    screenMonitoringEnabled: source.TONI_SCREEN_MONITORING === "true",
+    ...(source.TONI_AUTH_TOKEN?.trim() ? { authToken: source.TONI_AUTH_TOKEN.trim() } : {}),
+    workerMemoryMb: parseInteger(source.TONI_WORKER_MEMORY_MB, 512, 64, 4096),
+    workerMaxProcesses: parseInteger(source.TONI_WORKER_MAX_PROCESSES, 16, 1, 256),
+    workerCpuTimeMs: parseInteger(source.TONI_WORKER_CPU_TIME_MS, 30_000, 100, 300_000),
+    ...(source.TONI_JOB_HELPER_PATH?.trim() ? { windowsJobHelperPath: source.TONI_JOB_HELPER_PATH.trim() } : {}),
+    windowsTrustedRoot: source.TONI_TRUSTED_INSTALL_ROOT?.trim() || process.cwd()
   };
 }
 
