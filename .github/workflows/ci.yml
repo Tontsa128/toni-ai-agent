@@ -19,8 +19,41 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version: 22
+          package-manager-cache: false
       - name: Install dependencies
         run: npm install
+      - name: Type check
+        run: npm run check
+      - name: Build
+        run: npm run build
+      - name: Tests
+        run: npm test
+      - name: Dependency audit
+        run: npm audit --audit-level=high
+
+  windows-sandbox:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - name: Install dependencies
+        run: npm install
+      - name: Build native helper
+        shell: pwsh
+        run: |
+          cmake -S native/windows-job -B native/windows-job/build
+          cmake --build native/windows-job/build --config Release
+      - name: Configure sandbox test environment
+        shell: pwsh
+        run: |
+          "TONI_JOB_HELPER_PATH=$env:GITHUB_WORKSPACE\native\windows-job\build\Release\toni-job.exe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "TONI_TRUSTED_INSTALL_ROOT=$env:GITHUB_WORKSPACE" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Type check
         run: npm run check
       - name: Build
