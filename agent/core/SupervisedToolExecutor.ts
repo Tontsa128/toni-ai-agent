@@ -4,8 +4,7 @@ import { AgentOrchestrator } from "./AgentOrchestrator.js";
 import { SessionBudget } from "../limits/SessionBudget.js";
 import { SafeToolExecutor } from "../tools/SafeToolExecutor.js";
 import { ToolRegistry } from "../tools/ToolRegistry.js";
-import { AuditLog } from "../audit/AuditLog.js";
-import { ApprovalStore } from "../approvals/ApprovalStore.js";
+import type { AuditSink, ApprovalStorePort } from "../supervisor/SupervisedToolExecutor.js";
 import {
   SupervisedToolExecutor as IntegratedSupervisedToolExecutor,
   type AuditSink,
@@ -22,8 +21,8 @@ export class SupervisedToolExecutor {
     private readonly orchestrator: AgentOrchestrator,
     registry: ToolRegistry,
     private readonly context: AgentContext,
-    approvals?: ApprovalStore,
-    audit?: AuditLog,
+    approvals?: ApprovalStorePort,
+    audit?: AuditSink,
     maxToolCalls = 8
   ) {
     const approvalStore: ApprovalStorePort = approvals ?? new ApprovalStoreCompat();
@@ -100,9 +99,9 @@ export class SupervisedToolExecutor {
 }
 
 class ApprovalStoreCompat implements ApprovalStorePort {
-  private readonly records = new Map<string, import("../approvals/ApprovalStore.js").ApprovalRecord>();
+  private readonly records = new Map<string, import("../../storage/repositories/ApprovalRepository.js").ApprovalRecord>();
 
-  async put(input: Omit<import("../approvals/ApprovalStore.js").ApprovalRecord, "createdAt" | "expiresAt" | "used">) {
+  async put(input: {approvalId:string;userId:string;sessionId:string;actionId:string;toolName:string;argumentHash:string}) {
     const now = Date.now();
     const record = { ...input, createdAt: now, expiresAt: now + 120_000, used: false };
     this.records.set(record.approvalId, record);
@@ -114,9 +113,9 @@ class ApprovalStoreCompat implements ApprovalStorePort {
     return record && !record.used && record.expiresAt > Date.now() ? { ...record } : undefined;
   }
 
-  async consume(id: string, sessionId: string, actionId: string, argumentHash: string) {
+  async consume(id: string, sessionId: string, actionId: string, argumentHash: string, userId: string, toolName: string) {
     const record = this.get(id);
-    if (!record || record.sessionId !== sessionId || record.actionId !== actionId || record.argumentHash !== argumentHash) {
+    if (!record || record.userId !== userId || record.sessionId !== sessionId || record.actionId !== actionId || record.toolName !== toolName || record.argumentHash !== argumentHash) {
       throw new Error("Approval is invalid.");
     }
     record.used = true;
