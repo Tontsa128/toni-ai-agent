@@ -6,3 +6,5 @@ dist/
 .vscode/*.local.json
 .DS_Store
 *.log
+
+native/windows-job/build/
