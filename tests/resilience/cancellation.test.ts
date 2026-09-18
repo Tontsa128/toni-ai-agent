@@ -1,0 +1,2 @@
+import test from "node:test";import assert from "node:assert/strict";import { CancellationRegistry } from "../../agent/core/CancellationRegistry.js";
+test("cancellation reaches active operation",()=>{const r=new CancellationRegistry();const s=r.create("operation-1");assert.equal(s.aborted,false);assert.equal(r.cancel("operation-1"),true);assert.equal(s.aborted,true);});
