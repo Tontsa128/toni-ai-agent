@@ -1,7 +1,7 @@
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import type { AgentContext } from "../agent/types.js";
-import { initializeAgentRuntime } from "./startup.js";
+import { createInteractiveSession, initializeAgentRuntime } from "./startup.js";
 import { parseSessionInput } from "./InteractiveSession.js";
 
 const workspace = process.cwd();
@@ -17,7 +17,7 @@ if (request) {
   process.exit(0);
 }
 
-const session = runtime.session;
+const session = createInteractiveSession(runtime);
 const rl = createInterface({ input, output, terminal: true });
 
 console.log("Toni AI Agent");
