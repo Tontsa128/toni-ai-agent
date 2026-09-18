@@ -13,8 +13,7 @@ import { ApprovalRepository } from "../../storage/repositories/ApprovalRepositor
 import { AuditRepository } from "../../storage/repositories/AuditRepository.js";
 import { SqliteApprovalAdapter } from "../../agent/approvals/SqliteApprovalAdapter.js";
 import { AgentOrchestrator } from "../../agent/core/AgentOrchestrator.js";
-import { SupervisedToolExecutor } from "../../agent/supervisor/SupervisedToolExecutor.js";
-import { SafeToolExecutor } from "../../agent/tools/SafeToolExecutor.js";
+import { SupervisedToolExecutor } from "../../agent/core/SupervisedToolExecutor.js";
 import { OpenAIProvider } from "../../agent/providers/OpenAIProvider.js";
 import { registerAllTools } from "../../agent/tools/registerAllTools.js";
 import type { DefaultToolRegistryOptions } from "../../agent/tools/DefaultToolRegistry.js";
@@ -166,15 +165,13 @@ export async function createApplication(workspace?: string): Promise<Application
           append: (event: { type: string; sessionId: string; actionId: string; summary?: string; reason?: string }) =>
             auditRepository.append({ type: event.type, userId, sessionId: event.sessionId, actionId: event.actionId, message: event.reason ?? event.summary ?? event.type })
         };
-        const sessionBudget = new SessionBudget(config.maxToolCalls);
-        const safeExecutor = new SafeToolExecutor(registry, sessionBudget, logger, metrics);
         const executor = new SupervisedToolExecutor(
+          orchestrator,
           registry,
-          safeExecutor,
+          { mode: "coding", workspace: resolvedWorkspace, userRequest: "web session", userId },
           approvalStore,
           auditSink,
-          orchestrator,
-          { mode: "coding", workspace: resolvedWorkspace, userRequest: "web session", userId },
+          config.maxToolCalls,
           logger,
           metrics
         );
