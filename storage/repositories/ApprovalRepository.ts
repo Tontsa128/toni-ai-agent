@@ -16,6 +16,10 @@ export class ApprovalRepository {
       VALUES (?,?,?,?,?,?,?, ?,0)`).run(input.approvalId,input.userId,input.sessionId,input.actionId,input.toolName,input.argumentHash,input.createdAt,input.expiresAt);
     return { ...input, used: false };
   }
+  public getById(approvalId: string): ApprovalRecord | undefined {
+    const row = this.db.prepare("SELECT * FROM approvals WHERE approval_id=?").get(approvalId) as ApprovalRow | undefined;
+    return row ? mapRow(row) : undefined;
+  }
   public getActive(approvalId: string, now = Date.now()): ApprovalRecord | undefined {
     const row = this.db.prepare(`SELECT * FROM approvals
       WHERE approval_id=? AND used=0 AND expires_at>?`).get(approvalId, now) as ApprovalRow | undefined;
