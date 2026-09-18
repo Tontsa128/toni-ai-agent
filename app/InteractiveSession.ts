@@ -7,6 +7,8 @@ import type { PermissionPolicy } from "../agent/core/PermissionEngine.js";
 import type { ResumableCodingRepairCoordinatorOptions, RepairSessionPersistenceOptions, RepairAuditOptions } from "../agent/coding/CodingRepairCoordinator.js";
 import { CodingWorkflow } from "./CodingWorkflow.js";
 import type { AgentInput } from "./AgentInput.js";
+import { CostBudget } from "../agent/limits/CostBudget.js";
+import { ProviderBudget } from "../agent/limits/ProviderBudget.js";
 
 export type SessionCommand =
   | { type: "help" } | { type: "reset" } | { type: "status" }
@@ -31,6 +33,8 @@ export interface InteractiveSessionOptions {
   orchestrator?: AgentOrchestrator;
   executor?: SupervisedToolExecutor;
   toolRegistry?: ToolRegistry;
+  costBudget?: CostBudget;
+  providerBudget?: ProviderBudget;
 }
 
 export interface SessionReply { kind: "command" | "model" | "tool"; text: string; exit?: boolean; }
@@ -96,7 +100,7 @@ export class InteractiveSession {
   }
 
   private ensureToolLoop(): OpenAIToolLoop {
-    if (!this.toolLoop) this.toolLoop = new OpenAIToolLoop({ model: this.model });
+    if (!this.toolLoop) this.toolLoop = new OpenAIToolLoop({ model: this.model, costBudget: this.options.costBudget, providerBudget: this.options.providerBudget });
     return this.toolLoop;
   }
 
@@ -156,7 +160,7 @@ export class InteractiveSession {
       const pending = this.pendingToolApproval;
       const result = await this.executor.approveAndResume(actionId);
       this.pendingToolApproval = undefined;
-      const resumed = await this.ensureToolLoop().resumeApprovedCall(pending.responseId, pending.callId, result, defaultFunctionToolSpecs(), this.executor);
+      const resumed = await this.ensureToolLoop().resumeApprovedCall(pending.responseId, pending.callId, result, defaultFunctionToolSpecs(), this.executor, requestId);
       this.previousResponseId = resumed.responseId;
       this.requestCount += 1;
       if (resumed.pendingApproval) this.pendingToolApproval = resumed.pendingApproval;
