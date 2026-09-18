@@ -29,11 +29,11 @@ export class SafeToolExecutor {
       const output=await tool.execute(input,context);
       if(context.signal.aborted) throw new AgentError("CANCELLED","Tool execution was cancelled.",false);
       this.metrics?.toolFinished(Date.now()-startedAt);
-      this.logger?.info("Tool execution completed.",{requestId:context.requestId,sessionId:context.sessionId,toolName,durationMs:Date.now()-startedAt});
+      this.logger?.info("Tool execution completed.",{sessionId:context.sessionId,toolName,durationMs:Date.now()-startedAt,...(context.requestId ? {requestId:context.requestId} : {})});
       return {toolName,argumentHash,output};
     } catch(error:unknown){
       this.metrics?.toolFinished(Date.now()-startedAt);
-      this.logger?.error("Tool execution failed.",{requestId:context.requestId,sessionId:context.sessionId,toolName,durationMs:Date.now()-startedAt,errorCode:error instanceof AgentError?error.code:"TOOL_FAILED"});
+      this.logger?.error("Tool execution failed.",{sessionId:context.sessionId,toolName,durationMs:Date.now()-startedAt,errorCode:error instanceof AgentError?error.code:"TOOL_FAILED",...(context.requestId ? {requestId:context.requestId} : {})});
       if(error instanceof AgentError) throw error;
       throw new AgentError("TOOL_FAILED",`Tool failed: ${toolName}`,true,{cause:error});
     }
