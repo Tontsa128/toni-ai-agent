@@ -18,8 +18,8 @@ export class OpenAIToolLoop {
   private readonly model: string;
   private readonly maxTurns: number;
   private readonly providerTimeoutMs: number;
-  private readonly costBudget?: CostBudget;
-  private readonly providerBudget?: ProviderBudget;
+  private readonly costBudget: CostBudget | undefined;
+  private readonly providerBudget: ProviderBudget | undefined;
 
   constructor(options: { model?: string; maxTurns?: number; providerTimeoutMs?: number; costBudget?: CostBudget; providerBudget?: ProviderBudget } = {}) {
     if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
@@ -60,7 +60,7 @@ export class OpenAIToolLoop {
     const timeout = AbortSignal.timeout(this.providerTimeoutMs);
     let response: OpenAI.Responses.Response;
     try {
-      response = await this.client.responses.create({ ...request, signal: timeout });
+      response = await this.client.responses.create(request, { signal: timeout });
     } catch (error: unknown) {
       const message = timeout.aborted ? "Model request timed out." : "Model request failed.";
       throw new AgentError("MODEL_FAILED", message, !timeout.aborted, { cause: error });
@@ -104,7 +104,7 @@ export class OpenAIToolLoop {
       for (const item of calls) {
         if (item.type !== "function_call") continue;
         toolCalls += 1;
-        const result = await executor.execute({ name: item.name, argumentsJson: item.arguments, callId: item.call_id, requestId });
+        const result = await executor.execute({ name: item.name, argumentsJson: item.arguments, callId: item.call_id, ...(requestId ? { requestId } : {}) });
         if (!result.approved && this.isApprovalRequired(result.output)) {
           return { responseId: response.id, text: "Hyväksyntä tarvitaan ennen tämän toiminnon suorittamista.", turns: turn, toolCalls, pendingApproval: { actionId: String(result.output.actionId), responseId: response.id, callId: item.call_id } };
         }
