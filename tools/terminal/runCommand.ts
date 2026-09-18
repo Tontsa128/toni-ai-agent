@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { TerminalExecutor } from "../../agent/sandbox/TerminalExecutor.js";
 
 const SAFE = new Set(["git status", "git diff", "git log", "npm test", "npm run check", "npm run build"]);
 
@@ -6,15 +6,18 @@ export function isSafeCommand(command: string): boolean {
   return SAFE.has(command.trim());
 }
 
-export function runCommand(command: string, cwd: string): Promise<{ code: number; stdout: string; stderr: string }> {
+export async function runCommand(command: string, cwd: string): Promise<{ code: number; stdout: string; stderr: string }> {
   if (!isSafeCommand(command)) throw new Error(`Command requires approval: ${command}`);
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, { cwd, shell: true });
-    let stdout = "";
-    let stderr = "";
-    child.stdout.on("data", (chunk) => { stdout += chunk; });
-    child.stderr.on("data", (chunk) => { stderr += chunk; });
-    child.on("error", reject);
-    child.on("close", (code) => resolve({ code: code ?? -1, stdout, stderr }));
+  const executor = new TerminalExecutor({
+    policy: {
+      workspaceRoot: cwd,
+      network: "deny",
+      maxExecutionMs: 30_000,
+      maxOutputBytes: 200_000,
+      allowCommands: ["git", "npm"],
+      denyPatterns: ["rm -rf", "shutdown", "reboot", "format", "del /s /q"]
+    }
   });
+  const result = await executor.run({ command, cwd });
+  return { code: result.exitCode ?? -1, stdout: result.stdout, stderr: result.stderr || result.reason || "" };
 }
