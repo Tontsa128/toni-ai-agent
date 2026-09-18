@@ -59,7 +59,7 @@ export class SupervisedToolExecutor {
         toolName: input.name,
         input: parsed,
         signal: new AbortController().signal,
-        requestId: input.requestId
+        ...(input.requestId ? { requestId: input.requestId } : {})
       });
       return {
         ok: result.executed,
