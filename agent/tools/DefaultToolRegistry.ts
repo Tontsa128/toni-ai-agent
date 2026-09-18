@@ -8,6 +8,8 @@ import { createWordDocument } from "./WordDocumentTool.js";
 import { browserTools } from "./BrowserTool.js";
 import { WindowsComputerAdapter } from "../../computer/WindowsComputerAdapter.js";
 import type { SandboxPolicy } from "../sandbox/types.js";
+import type { WorkerLimits } from "../worker/WorkerLimits.js";
+import type { WindowsJobOptions } from "../worker/WindowsJobController.js";
 
 const readTextFileTool: ToolDefinition = {
   name: "read_text_file",
@@ -48,7 +50,7 @@ const writeWordDocumentTool = (workspace: string): ToolDefinition => ({
   }
 });
 
-const runCommandTool = (workspace: string): ToolDefinition => ({
+const runCommandTool = (workspace: string, workerLimits?: WorkerLimits, windowsJob?: WindowsJobOptions): ToolDefinition => ({
   name: "run_command",
   description: "Run an allowlisted development command inside the workspace. Read/check commands are green; writes or destructive commands are still supervised by the permission engine.",
   risk: "yellow",
@@ -64,7 +66,7 @@ const runCommandTool = (workspace: string): ToolDefinition => ({
       allowCommands: ["node", "npm", "npx", "pnpm", "yarn", "git", "tsc", "tsx", "python", "python3"],
       denyPatterns: ["rm -rf /", "rm -rf *", "format ", "format.com", "del /s /q", "shutdown", "reboot", "mkfs", "diskpart", "reg delete", "cipher /w"]
     };
-    return new TerminalExecutor({ policy }).run({ command: value.command, cwd: workspace });
+    return new TerminalExecutor({ policy, workerLimits, windowsJob }).run({ command: value.command, cwd: workspace });
   }
 });
 
@@ -103,7 +105,7 @@ const computerTools = (computer = new WindowsComputerAdapter()): ToolDefinition[
   }
 ];
 
-export function createDefaultToolRegistry(workspace: string): ToolRegistry {
+export interface DefaultToolRegistryOptions { workerLimits?: WorkerLimits; windowsJob?: WindowsJobOptions; }\n\nexport function createDefaultToolRegistry(workspace: string, options: DefaultToolRegistryOptions = {}): ToolRegistry {
   const registry = new ToolRegistry();
   registry.register({ ...readTextFileTool, execute: async (input) => {
     if (typeof input !== "object" || input === null || typeof (input as { relativePath?: unknown }).relativePath !== "string") throw new Error("relativePath is required");
@@ -111,7 +113,7 @@ export function createDefaultToolRegistry(workspace: string): ToolRegistry {
   }});
   registry.register(writeTextFileTool(workspace));
   registry.register(writeWordDocumentTool(workspace));
-  registry.register(runCommandTool(workspace));
+  registry.register(runCommandTool(workspace, options.workerLimits, options.windowsJob));
   for (const tool of browserTools(workspace)) registry.register(tool);
   for (const tool of computerTools()) registry.register(tool);
 
