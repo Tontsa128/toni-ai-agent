@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, resolve } from "node:path";
-import { initializeAgentRuntime } from "./startup.js";
+import { createInteractiveSession, initializeAgentRuntime } from "./startup.js";
 import { attachmentToContent, type AgentContentPart } from "./AgentInput.js";
 import { ScreenContextAssistant } from "../agent/vision/ScreenContextAssistant.js";
 import { ScreenMonitor } from "../agent/vision/ScreenMonitor.js";
@@ -15,7 +15,6 @@ import { WindowsScreenCapture } from "../agent/vision/WindowsScreenCapture.js";
 const workspace = process.cwd();
 const runtime = await initializeAgentRuntime(workspace);
 const { config, healthService } = runtime;
-const session = runtime.session;
 const port = config.port;
 const maxBodyBytes = config.maxRequestBytes;
 const maxFileBytes = 20 * 1024 * 1024;
@@ -150,6 +149,8 @@ const server = createServer(async (req, res) => {
     return sendJson(res, 400, { error: error instanceof Error ? error.message : String(error) });
   }
 });
+
+const session = createInteractiveSession(runtime);
 
 server.listen(port, config.host, () => {
   console.log(`Toni AI Agent UI: http://${config.host}:${port}`);
