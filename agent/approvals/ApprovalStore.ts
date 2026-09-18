@@ -105,7 +105,7 @@ function parseApprovalRecord(value: unknown): ApprovalRecord {
     typeof record.expiresAt !== "number" ||
     typeof record.used !== "boolean"
   ) throw new Error("Invalid approval record fields.");
-  return record as ApprovalRecord;
+  return record as unknown as ApprovalRecord;
 }
 
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {
