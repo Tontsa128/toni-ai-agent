@@ -11,8 +11,8 @@ export interface WindowsJobOptions {
 }
 
 export class WindowsJobController {
-  private helper?: ChildProcess;
-  private helperExit?: Promise<number | null>;
+  private helper: ChildProcess | undefined = undefined;
+  private helperExit: Promise<number | null> | undefined = undefined;
 
   public constructor(private readonly options: WindowsJobOptions) {}
 
