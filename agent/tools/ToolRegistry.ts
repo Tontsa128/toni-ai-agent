@@ -1,5 +1,5 @@
 export type ToolRisk = "green" | "yellow" | "red";
-export interface ToolExecutionContext { sessionId: string; signal: AbortSignal; }
+export interface ToolExecutionContext { sessionId: string; signal: AbortSignal; requestId?: string; }
 
 export interface ToolDefinition<Input = unknown, Output = unknown> {
   name: string;
