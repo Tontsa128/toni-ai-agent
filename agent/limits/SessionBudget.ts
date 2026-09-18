@@ -9,4 +9,5 @@ export class SessionBudget {
   }
   getToolCalls(): number { return this.toolCalls; }
   getRemaining(): number { return this.maxToolCalls - this.toolCalls; }
+  getRemainingToolCalls(): number { return this.getRemaining(); }
 }
