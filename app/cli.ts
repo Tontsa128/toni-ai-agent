@@ -1,13 +1,12 @@
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import { loadPolicy } from "../tools/config.js";
-import { AgentOrchestrator } from "../agent/core/AgentOrchestrator.js";
 import type { AgentContext } from "../agent/types.js";
-import { InteractiveSession, parseSessionInput } from "./InteractiveSession.js";
+import { initializeAgentRuntime } from "./startup.js";
+import { parseSessionInput } from "./InteractiveSession.js";
 
 const workspace = process.cwd();
-const policy = await loadPolicy(workspace);
-const agent = new AgentOrchestrator(policy);
+const runtime = await initializeAgentRuntime(workspace);
+const agent = runtime.orchestrator;
 
 const args = process.argv.slice(2);
 const request = args.join(" ").trim();
@@ -18,7 +17,7 @@ if (request) {
   process.exit(0);
 }
 
-const session = new InteractiveSession({ workspace, policy });
+const session = runtime.session;
 const rl = createInterface({ input, output, terminal: true });
 
 console.log("Toni AI Agent");
