@@ -1,5 +1,6 @@
 import type { Server } from "node:http";
 import type { ApplicationContext } from "../bootstrap/createApplication.js";
+
 export function installShutdown(server: Server, application: ApplicationContext): void {
   let stopping = false;
   const shutdown = async (signal: string): Promise<void> => {
@@ -16,6 +17,7 @@ export function installShutdown(server: Server, application: ApplicationContext)
     });
     try { application.auditRepository.append({ type: "session_ended", message: "Application stopped by " + signal + "." }); } catch {}
     application.database.close();
+    await application.processLock.release().catch(() => {});
     application.state.setPhase("stopped");
   };
   process.once("SIGINT", () => { void shutdown("SIGINT"); });
