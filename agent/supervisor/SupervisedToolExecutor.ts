@@ -1,7 +1,7 @@
 import type { AgentContext, AgentAction } from "../types.js";
 import type { ToolInvocation } from "../sandbox/types.js";
 import { AgentOrchestrator } from "../core/AgentOrchestrator.js";
-import type { ApprovalRecord } from "../../storage/repositories/ApprovalRepository.js";
+import type { ApprovalRecord } from "../approvals/ApprovalStore.js";
 import { AgentError } from "../errors/AgentError.js";
 import { CancellationRegistry } from "../core/CancellationRegistry.js";
 import { SessionLock } from "../core/SessionLock.js";
@@ -268,7 +268,7 @@ export class SupervisedToolExecutor {
       const result = await this.executor.execute(
         request.toolName,
         request.input,
-        { sessionId: request.sessionId, signal, requestId: request.requestId }
+        { sessionId: request.sessionId, signal, ...(request.requestId ? { requestId: request.requestId } : {}) }
       );
       if (signal.aborted) throw new AgentError("CANCELLED", "Tool execution was cancelled.", false);
       this.audit.append({
