@@ -29,7 +29,7 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
     environment,
     host: source.HOST?.trim() || "127.0.0.1",
     port: parseInteger(source.PORT, 8787, 1, 65535),
-    openAiApiKey,
+    ...(openAiApiKey ? { openAiApiKey } : {}),
     openAiModel,
     approvalTtlMs: parseInteger(source.TONI_APPROVAL_TTL_MS, 120_000, 1_000, 3_600_000),
     maxRequestBytes: parseInteger(source.TONI_MAX_REQUEST_BYTES, 1_048_576, 1_024, 10_485_760),
