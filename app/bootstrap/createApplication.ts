@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 import { access, constants, realpath, stat } from "node:fs/promises";
-import { loadConfig, type AppConfig } from "../../config/env.js";
+import { loadConfig } from "../../config/env.js";
 import { createAppPaths } from "../../config/paths.js";
 import { mkdir } from "node:fs/promises";
 import { verifyDatabase } from "../../storage/DatabaseHealth.js";
@@ -32,7 +32,7 @@ import { Metrics } from "../observability/Metrics.js";
 
 export interface ApplicationContext {
   workspace: string;
-  config: AppConfig;
+  config: ReturnType<typeof loadConfig>;
   state: StartupState;
   database: ToniDatabase;
   approvalRepository: ApprovalRepository;
@@ -58,14 +58,19 @@ export async function createApplication(workspace?: string): Promise<Application
   try {
     const config = loadConfig();
     const paths = createAppPaths();
-    await mkdir(paths.dataRoot, { recursive: true });
-    await mkdir(paths.auditDirectory, { recursive: true });
-    await mkdir(paths.logDirectory, { recursive: true });
+    await Promise.all([
+      mkdir(paths.dataRoot, { recursive: true }),
+      mkdir(paths.auditDirectory, { recursive: true }),
+      mkdir(paths.logDirectory, { recursive: true }),
+      mkdir(paths.backupDirectory, { recursive: true })
+    ]);
     const logger = new Logger(config.environment === "production" ? "info" : "debug");
     const metrics = new Metrics();
     state.setPhase("config_loaded");
 
-    const resolvedWorkspace = await realpath(resolve(workspace ?? paths.workspaceDirectory));
+    const requestedWorkspace = resolve(workspace ?? paths.workspaceDirectory);
+    await mkdir(requestedWorkspace, { recursive: true });
+    const resolvedWorkspace = await realpath(requestedWorkspace);
     const workspaceStats = await stat(resolvedWorkspace);
     if (!workspaceStats.isDirectory()) throw new Error("Workspace is not a directory.");
 
@@ -180,7 +185,7 @@ export async function createApplication(workspace?: string): Promise<Application
     await runStartupChecks(checks, config.environment === "production");
     state.setPhase("sandbox_ready");
 
-    const application: ApplicationContext = {
+    return {
       workspace: resolvedWorkspace,
       config,
       state,
@@ -231,12 +236,9 @@ export async function createApplication(workspace?: string): Promise<Application
         });
       }
     };
-
-    return application;
   } catch (error: unknown) {
     state.fail(error instanceof Error ? error.message : "Application startup failed.");
     try { database?.close(); } catch {}
     throw error;
   }
 }
-
