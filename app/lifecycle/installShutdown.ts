@@ -8,7 +8,6 @@ export function installShutdown(server: Server, application: ApplicationContext)
     stopping = true;
     application.state.setPhase("stopping");
     application.cancellation.clear();
-    await application.windowsJob?.terminate().catch(() => {});
     await new Promise<void>(resolve => {
       let finished = false;
       const finish = () => { if (finished) return; finished = true; resolve(); };
