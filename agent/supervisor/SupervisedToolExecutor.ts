@@ -10,6 +10,8 @@ import { ToolRegistry } from "../tools/ToolRegistry.js";
 import { hashToolCall } from "../security/ToolCallHash.js";
 import { createApproval } from "./ApprovalToken.js";
 import { decideToolPermission } from "./ToolPermission.js";
+import { Logger } from "../../app/observability/Logger.js";
+import { Metrics } from "../../app/observability/Metrics.js";
 
 export interface SupervisedToolRequest {
   sessionId: string;
@@ -18,6 +20,7 @@ export interface SupervisedToolRequest {
   toolName: string;
   input: unknown;
   signal: AbortSignal;
+  requestId?: string;
 }
 
 export interface SupervisedToolResult extends SafeToolExecutionResult {
@@ -80,7 +83,9 @@ export class SupervisedToolExecutor {
     private readonly approvals: ApprovalStorePort,
     private readonly audit: AuditSink,
     private readonly orchestrator: AgentOrchestrator,
-    private readonly context: AgentContext
+    private readonly context: AgentContext,
+    private readonly logger?: Logger,
+    private readonly metrics?: Metrics
   ) {}
 
   public async execute(request: SupervisedToolRequest): Promise<SupervisedToolResult> {
@@ -177,6 +182,7 @@ export class SupervisedToolExecutor {
           request.input
         );
         this.pending.set(request.actionId, { request, approvalId: created.approvalId });
+        this.metrics?.approvalCreated();
         this.orchestrator.approvals.request({ action, reason: permission.reason });
         this.audit.append({
           type: "approval_requested",
@@ -201,6 +207,7 @@ export class SupervisedToolExecutor {
         };
       }
 
+      this.metrics?.toolDenied();
       this.audit.append({
         type: "tool_denied",
         sessionId: request.sessionId,
@@ -230,6 +237,7 @@ export class SupervisedToolExecutor {
           this.context.userId ?? "local-user",
           request.toolName
         );
+        this.metrics?.approvalConsumed();
         this.audit.append({
           type: "approval_consumed",
           sessionId: request.sessionId,
@@ -260,7 +268,7 @@ export class SupervisedToolExecutor {
       const result = await this.executor.execute(
         request.toolName,
         request.input,
-        { sessionId: request.sessionId, signal }
+        { sessionId: request.sessionId, signal, requestId: request.requestId }
       );
       if (signal.aborted) throw new AgentError("CANCELLED", "Tool execution was cancelled.", false);
       this.audit.append({
