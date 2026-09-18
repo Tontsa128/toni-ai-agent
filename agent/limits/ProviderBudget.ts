@@ -1,0 +1,7 @@
+export class ProviderBudget {
+  private requests = 0;
+  constructor(private readonly maxRequests: number) { if (!Number.isInteger(maxRequests) || maxRequests < 1) throw new Error("maxRequests must be a positive integer."); }
+  consume(): void { if (this.requests >= this.maxRequests) throw new Error("Provider request budget exceeded."); this.requests += 1; }
+  getUsed(): number { return this.requests; }
+  getRemaining(): number { return this.maxRequests - this.requests; }
+}
