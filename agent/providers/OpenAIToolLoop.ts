@@ -35,7 +35,7 @@ export class OpenAIToolLoop {
     this.providerBudget = options.providerBudget;
   }
 
-  async run(input: AgentInput, tools: FunctionToolSpec[], executor: ToolExecutor, instructions?: string, previousResponseId?: string, requestId?: string): Promise<ToolLoopResult> {
+  async run(input: AgentInput, tools: FunctionToolSpec[], executor: ToolExecutor, instructions?: string, previousResponseId?: string, requestId?: string, cancellationSignal?: AbortSignal): Promise<ToolLoopResult> {
     const response = await this.createResponse({
       model: this.model,
       instructions: [UNTRUSTED_CONTENT_INSTRUCTION, instructions].filter(Boolean).join("\n"),
@@ -57,15 +57,15 @@ export class OpenAIToolLoop {
     return this.processResponse(response, tools, executor, 1, 1, requestId);
   }
 
-  private async createResponse(request: OpenAI.Responses.ResponseCreateParamsNonStreaming): Promise<OpenAI.Responses.Response> {
+  private async createResponse(request: OpenAI.Responses.ResponseCreateParamsNonStreaming & { signal?: AbortSignal }): Promise<OpenAI.Responses.Response> {
     this.providerBudget?.consume();
-    const timeout = AbortSignal.timeout(this.providerTimeoutMs);
+    const timeout = AbortSignal.timeout(this.providerTimeoutMs);\n    const signal = request.signal ? AbortSignal.any([timeout, request.signal]) : timeout;
     let response: OpenAI.Responses.Response;
     try {
-      response = await this.client.responses.create(request, { signal: timeout });
+      response = await this.client.responses.create(request, { signal });
     } catch (error: unknown) {
-      const message = timeout.aborted ? "Model request timed out." : "Model request failed.";
-      throw new AgentError("MODEL_FAILED", message, !timeout.aborted, { cause: error });
+      const message = request.signal?.aborted ? "Model request cancelled." : timeout.aborted ? "Model request timed out." : "Model request failed.";
+      throw new AgentError("MODEL_FAILED", message, !timeout.aborted && !request.signal?.aborted, { cause: error });
     }
     if (response.usage && this.costBudget) {
       const inputTokens = response.usage.input_tokens ?? 0;
