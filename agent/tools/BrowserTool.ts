@@ -1,5 +1,6 @@
 import { BrowserController } from "../browser/BrowserController.js";
 import type { ToolDefinition } from "./ToolRegistry.js";
+import { ComputerEmergencyStop } from "../computer/ComputerEmergencyStop.js";
 
 const controllers = new Map<string, BrowserController>();
 
@@ -23,7 +24,7 @@ function requiredString(input: Record<string, unknown>, key: string): string {
   return value;
 }
 
-export function browserTools(workspace: string): ToolDefinition[] {
+export function browserTools(workspace: string, emergencyStop = new ComputerEmergencyStop()): ToolDefinition[] {
   const controller = getController(workspace);
   return [
     {
@@ -54,6 +55,7 @@ export function browserTools(workspace: string): ToolDefinition[] {
       risk: "yellow",
       execute: async (input) => {
         const value = objectInput(input);
+        emergencyStop.assertRunning();
         return controller.click(requiredString(value, "tabId"), requiredString(value, "selector"));
       }
     },
@@ -63,6 +65,7 @@ export function browserTools(workspace: string): ToolDefinition[] {
       risk: "yellow",
       execute: async (input) => {
         const value = objectInput(input);
+        emergencyStop.assertRunning();
         return controller.type(requiredString(value, "tabId"), requiredString(value, "selector"), requiredString(value, "text"));
       }
     },
@@ -72,6 +75,7 @@ export function browserTools(workspace: string): ToolDefinition[] {
       risk: "yellow",
       execute: async (input) => {
         const value = objectInput(input);
+        emergencyStop.assertRunning();
         return controller.navigate(requiredString(value, "tabId"), requiredString(value, "url"));
       }
     }

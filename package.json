@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node scripts/copy-migrations.mjs",
     "check": "tsc -p tsconfig.json --noEmit",
     "test": "node --test \"dist/tests/**/*.test.js\"",
     "start": "node dist/app/interactive-cli.js",
@@ -25,7 +25,9 @@
     "test:all": "npm run check && npm run build && npm run security:boundaries && node scripts/check-secrets.mjs && npm test && npm run audit:high",
     "release:verify": "npm run test:all"
   },
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "dependencies": {
     "docx": "^9.7.1",
     "openai": "^7.9.0",
