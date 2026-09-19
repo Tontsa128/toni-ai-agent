@@ -5,6 +5,7 @@ import type { ScreenObservation } from "../../agent/vision/ScreenObservation.js"
 
 const observation: ScreenObservation = {
   capturedAt: new Date().toISOString(),
+  monitorId: "test-monitor",
   activeApplication: "test",
   activeWindowTitle: "test"
 };
