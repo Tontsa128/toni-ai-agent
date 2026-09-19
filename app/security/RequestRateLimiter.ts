@@ -12,7 +12,7 @@ export class RequestRateLimiter {
     if (!Number.isInteger(limit) || limit < 1) throw new Error("Invalid rate-limit.");
     const bucket = this.buckets.get(key) ?? { timestamps: [] };
     const cutoff = now - this.windowMs;
-    bucket.timestamps = bucket.timestamps.filter(timestamp => timestamp > cutoff);
+    bucket.timestamps = bucket.timestamps.filter(timestamp => timestamp >= cutoff);
     if (bucket.timestamps.length >= limit) {
       const oldest = bucket.timestamps[0] ?? now;
       return { allowed: false, retryAfterMs: Math.max(1, oldest + this.windowMs - now) };
