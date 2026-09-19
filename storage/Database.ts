@@ -1,6 +1,7 @@
 import Database from "better-sqlite3";
 import { mkdirSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
 export class ToniDatabase {
   private readonly db: Database.Database;
@@ -20,7 +21,7 @@ export class ToniDatabase {
     for (const filename of ["001_approvals.sql", "002_audit_events.sql"]) {
       const applied = this.db.prepare("SELECT filename FROM schema_migrations WHERE filename = ?").get(filename);
       if (applied) continue;
-      const sql = readFileSync(join(process.cwd(), "storage", "migrations", filename), "utf8");
+      const sql = readFileSync(migrationPath(filename), "utf8");
       const transaction = this.db.transaction(() => {
         this.db.exec(sql);
         this.db.prepare("INSERT INTO schema_migrations (filename, applied_at) VALUES (?, ?)").run(filename, Date.now());
@@ -31,4 +32,7 @@ export class ToniDatabase {
 
   public connection(): Database.Database { return this.db; }
   public close(): void { if (this.db.open) this.db.close(); }
+}
+function migrationPath(filename: string): string {
+  return fileURLToPath(new URL(`./migrations/${filename}`, import.meta.url));
 }
