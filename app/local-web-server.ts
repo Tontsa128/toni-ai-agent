@@ -4,7 +4,7 @@ import { extname, resolve } from "node:path";
 import { createInteractiveSession, initializeAgentRuntime } from "./startup.js";
 import { handleHealthRoute } from "./health/HealthRoutes.js";
 import { installShutdown } from "./lifecycle/installShutdown.js";
-import { timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { attachmentToContent, type AgentContentPart } from "./AgentInput.js";
 import { ScreenContextAssistant } from "../agent/vision/ScreenContextAssistant.js";
 import { ScreenMonitor } from "../agent/vision/ScreenMonitor.js";
@@ -16,6 +16,7 @@ import { TesseractScreenTextProvider } from "../agent/vision/TesseractScreenText
 import { WindowsScreenCapture } from "../agent/vision/WindowsScreenCapture.js";
 import { createRequestContext } from "./observability/RequestContext.js";
 import { createErrorResponse } from "./observability/ErrorResponse.js";
+import { RequestRateLimiter } from "./security/RequestRateLimiter.js";
 
 const runtime = await initializeAgentRuntime();
 const workspace = runtime.workspace;
@@ -23,6 +24,7 @@ const { config, healthService, logger, metrics } = runtime;
 const port = config.port;
 const maxBodyBytes = config.maxRequestBytes;
 const maxFileBytes = 20 * 1024 * 1024;
+const requestRateLimiter = new RequestRateLimiter();
 const screenAssistant = new ScreenContextAssistant();
 const screenSuggestionController = new ScreenSuggestionController();
 const screenSuggestionDebouncer = new ScreenSuggestionDebouncer(60_000);
@@ -86,6 +88,11 @@ const server = createServer(async (req, res) => {
     if (!runtime.state.isReady()) return sendJson(res, 503, { error: "Application is not ready.", phase: runtime.state.getPhase(), requestId });
     if (!isAuthorized(req.headers.authorization, config.authToken, config.environment)) {
       return sendJson(res, 401, { error: "Unauthorized" });
+    }
+    const rateLimit = applyRateLimit(req);
+    if (!rateLimit.allowed) {
+      res.setHeader("retry-after", String(Math.ceil(rateLimit.retryAfterMs / 1000)));
+      return sendJson(res, 429, { error: "Too many requests.", retryAfterMs: rateLimit.retryAfterMs, requestId });
     }
     if (req.method === "GET" && req.url === "/") {
       const html = await readFile(resolve(workspace, "app/public/agent.html"), "utf8");
@@ -239,4 +246,16 @@ function isAuthorized(header: string | undefined, expected: string | undefined, 
   const supplied = Buffer.from(header.slice(prefix.length), "utf8");
   const actual = Buffer.from(expected, "utf8");
   return supplied.length === actual.length && timingSafeEqual(supplied, actual);
+}
+
+function applyRateLimit(req: IncomingMessage): { allowed: boolean; retryAfterMs: number } {
+  if (!req.url?.startsWith("/api/")) return { allowed: true, retryAfterMs: 0 };
+  const address = req.socket.remoteAddress ?? "unknown";
+  const authFingerprint = req.headers.authorization
+    ? createHash("sha256").update(req.headers.authorization).digest("hex").slice(0, 16)
+    : "anonymous";
+  const key = `${address}:${authFingerprint}`;
+  const path = req.url.split("?", 1)[0];
+  const limit = path === "/api/ask" ? 30 : path === "/api/approve" || path === "/api/reject" ? 60 : 120;
+  return requestRateLimiter.consume(key, limit);
 }
