@@ -66,7 +66,7 @@ export class AuditRepository {
         this.db.prepare("UPDATE audit_events SET previous_hash = ? WHERE id = ?").run(boundary.hash, next.id);
       }
       const result = this.db.prepare("DELETE FROM audit_events WHERE id <= ?").run(boundary.id);
-      return { retained: Number(this.db.prepare("SELECT COUNT(*) AS count FROM audit_events").get().count), removed: Number(result.changes) };
+      return { retained: Number((this.db.prepare("SELECT COUNT(*) AS count FROM audit_events").get() as { count: number }).count), removed: Number(result.changes) };
     });
     const result = tx();
     if (!this.verify().ok) throw new Error("Audit retention produced an invalid hash chain.");
