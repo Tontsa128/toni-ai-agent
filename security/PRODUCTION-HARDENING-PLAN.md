@@ -9,20 +9,20 @@ This document is the execution checklist for the final hardening pass before loc
 - [x] Add an authenticated HTTP emergency-stop endpoint in production mode.
 - [x] Make screen monitoring explicitly opt-in; OCR is not enabled unless screen monitoring is enabled and OCR is explicitly enabled.
 - [x] Add regression tests for the emergency stop and screen monitor default-off behavior.
-- [ ] Add untrusted-content / prompt-injection boundary and tests.
-- [ ] Add HTTP/API rate limiting and abuse controls.
-- [ ] Complete upload content validation and hostile-file tests.
-- [ ] Verify every browser/computer execution path is supervisor-gated.
+- [x] Add untrusted-content / prompt-injection boundary and tests.
+- [x] Add HTTP/API rate limiting and abuse controls.
+- [x] Complete upload content validation and hostile-file tests.
+- [x] Verify every browser/computer execution path is supervisor-gated.
 - [ ] Verify user/session/approval isolation for cloud operation.
 
 ## Phase B — persistence and recovery
 
-- [ ] Make migration discovery independent of the process working directory.
-- [ ] Verify SQLite WAL, busy timeout, foreign keys and transaction semantics.
-- [ ] Verify audit hash-chain concurrency and restart integrity.
+- [x] Make migration discovery independent of the process working directory.
+- [x] Verify SQLite WAL, busy timeout, foreign keys and transaction semantics.
+- [x] Verify audit hash-chain concurrency and restart integrity.
 - [ ] Design retention so audit-chain integrity is preserved.
-- [ ] Make restore require the application process lock and perform atomic replacement.
-- [ ] Add post-restore database + audit verification.
+- [x] Make restore require the application process lock and perform atomic replacement (POSIX atomic rename; Windows rollback-safe replacement).
+- [x] Add post-restore database + audit verification.
 - [ ] Run destructive recovery tests only against disposable test data.
 
 ## Phase C — runtime and operations
