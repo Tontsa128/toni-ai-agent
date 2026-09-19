@@ -50,6 +50,7 @@ export class OpenAIToolLoop {
     const response = await this.createResponse({
       model: this.model,
       previous_response_id: responseId,
+      instructions: UNTRUSTED_CONTENT_INSTRUCTION,
       input: [{ type: "function_call_output" as const, call_id: callId, output: JSON.stringify({ ok: result.ok, approved: result.approved, result: wrapUntrustedToolOutput(result.output) }) }],
       tools: this.toolDefinitions(tools)
     });
@@ -111,7 +112,7 @@ export class OpenAIToolLoop {
         }
         outputs.push({ type: "function_call_output", call_id: item.call_id, output: JSON.stringify({ ok: result.ok, approved: result.approved, result: wrapUntrustedToolOutput(result.output) }) });
       }
-      response = await this.createResponse({ model: this.model, previous_response_id: response.id, input: outputs, tools: this.toolDefinitions(tools) });
+      response = await this.createResponse({ model: this.model, previous_response_id: response.id, instructions: UNTRUSTED_CONTENT_INSTRUCTION, input: outputs, tools: this.toolDefinitions(tools) });
     }
     throw new AgentError("MODEL_FAILED", `Tool loop exceeded maximum turns (${this.maxTurns}).`, false);
   }
