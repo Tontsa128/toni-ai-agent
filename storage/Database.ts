@@ -33,6 +33,6 @@ export class ToniDatabase {
   public connection(): Database.Database { return this.db; }
   public close(): void { if (this.db.open) this.db.close(); }
 }
-function migrationPath(filename: string): string {
+export function migrationPath(filename: string): string {
   return fileURLToPath(new URL(`./migrations/${filename}`, import.meta.url));
 }
