@@ -17,6 +17,7 @@ import { WindowsScreenCapture } from "../agent/vision/WindowsScreenCapture.js";
 import { createRequestContext } from "./observability/RequestContext.js";
 import { createErrorResponse } from "./observability/ErrorResponse.js";
 import { RequestRateLimiter } from "./security/RequestRateLimiter.js";
+import { validateUpload } from "./security/UploadValidator.js";
 
 const runtime = await initializeAgentRuntime();
 const workspace = runtime.workspace;
@@ -157,6 +158,7 @@ const server = createServer(async (req, res) => {
         if (value.size > maxFileBytes) throw new Error(`Tiedosto ${value.name} on liian suuri (max 20 MB).`);
         const mediaType = safeMediaType(value.type, value.name);
         const buffer = Buffer.from(await value.arrayBuffer());
+        validateUpload(value.name, mediaType, buffer, maxFileBytes);
         parts.push(attachmentToContent({ filename: value.name, mediaType, size: value.size, content: buffer }));
       }
       if (parts.length === 0) throw new Error("Anna viesti tai liitä vähintään yksi tiedosto.");
