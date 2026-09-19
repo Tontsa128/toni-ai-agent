@@ -134,7 +134,7 @@ export async function createApplication(workspace?: string): Promise<Application
     const modelProvider = new OpenAIProvider(config.openAiModel);
     state.setPhase("providers_ready");
 
-    const healthService = new HealthService({ configurationReady: true, approvalStoreReady: true, modelConfigured: Boolean(config.openAiModel) });
+    const healthService = new HealthService({ configurationReady: true, approvalStoreReady: true, modelConfigured: Boolean(config.openAiModel), startupState: state });
     const checks: StartupCheck[] = [
       { name: "configuration", requiredInProduction: true, async run() {
         if (!config.openAiModel) throw new Error("OPENAI_MODEL is missing.");
