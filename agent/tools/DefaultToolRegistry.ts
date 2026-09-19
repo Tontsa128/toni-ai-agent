@@ -123,7 +123,7 @@ export function createDefaultToolRegistry(workspace: string, options: DefaultToo
   registry.register(writeTextFileTool(workspace));
   registry.register(writeWordDocumentTool(workspace));
   registry.register(runCommandTool(workspace, options.workerLimits, options.windowsJob));
-  for (const tool of browserTools(workspace)) registry.register(tool);
+  for (const tool of browserTools(workspace, options.computerEmergencyStop)) registry.register(tool);
   for (const tool of computerTools(new WindowsComputerAdapter(), options.computerEmergencyStop)) registry.register(tool);
 
   const git = new GitReadTool();
