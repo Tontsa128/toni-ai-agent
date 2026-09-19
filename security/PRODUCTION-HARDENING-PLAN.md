@@ -28,10 +28,10 @@ This document is the execution checklist for the final hardening pass before loc
 ## Phase C — runtime and operations
 
 - [ ] Verify shutdown releases process lock and closes all resources.
-- [ ] Verify readiness cannot become healthy before all required startup checks pass.
+- [x] Verify readiness cannot become healthy before all required startup checks pass.
 - [ ] Add production-like local smoke test.
 - [ ] Verify OpenAI timeout/cancellation and provider budget behavior end-to-end.
-- [ ] Verify cost accounting fails closed for unknown model pricing.
+- [x] Verify cost accounting fails closed for unknown model pricing.
 - [ ] Verify logs/metrics never expose prompts, secrets or credentials.
 
 ## Phase D — Windows local acceptance
