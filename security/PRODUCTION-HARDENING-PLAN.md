@@ -20,10 +20,10 @@ This document is the execution checklist for the final hardening pass before loc
 - [x] Make migration discovery independent of the process working directory.
 - [x] Verify SQLite WAL, busy timeout, foreign keys and transaction semantics.
 - [x] Verify audit hash-chain concurrency and restart integrity.
-- [ ] Design retention so audit-chain integrity is preserved.
+- [x] Design retention so audit-chain integrity is preserved.
 - [x] Make restore require the application process lock and perform atomic replacement (POSIX atomic rename; Windows rollback-safe replacement).
 - [x] Add post-restore database + audit verification.
-- [ ] Run destructive recovery tests only against disposable test data.
+- [x] Recovery/retention tests use disposable in-memory test data.
 
 ## Phase C — runtime and operations
 
