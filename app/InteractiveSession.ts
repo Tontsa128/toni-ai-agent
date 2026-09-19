@@ -8,7 +8,7 @@ import type { ResumableCodingRepairCoordinatorOptions, RepairSessionPersistenceO
 import { CodingWorkflow } from "./CodingWorkflow.js";
 import type { AgentInput } from "./AgentInput.js";
 import { CostBudget } from "../agent/limits/CostBudget.js";
-import { ProviderBudget } from "../agent/limits/ProviderBudget.js";
+import { ProviderBudget } from "../agent/limits/ProviderBudget.js";\nimport { CancellationRegistry } from "../agent/core/CancellationRegistry.js";
 
 export type SessionCommand =
   | { type: "help" } | { type: "reset" } | { type: "status" }
@@ -34,7 +34,7 @@ export interface InteractiveSessionOptions {
   executor?: SupervisedToolExecutor;
   toolRegistry?: ToolRegistry;
   costBudget?: CostBudget;
-  providerBudget?: ProviderBudget;
+  providerBudget?: ProviderBudget;\n  cancellation?: CancellationRegistry;
 }
 
 export interface SessionReply { kind: "command" | "model" | "tool"; text: string; exit?: boolean; }
@@ -194,7 +194,7 @@ export class InteractiveSession {
     if (this.pendingToolApproval) throw new Error(`Approval required first: /approve ${this.pendingToolApproval.actionId}`);
     const repair = this.codingWorkflow?.getRepairSnapshot();
     if (repair?.state === "waiting_approval") throw new Error(`Repair approval required first: /approve ${repair.approval?.actionId ?? "<actionId>"}`);
-    const result = await this.ensureToolLoop().run(input, defaultFunctionToolSpecs(), this.executor, [
+    const operationId = requestId ?? `session-${Date.now()}-${this.requestCount}`;\n    const signal = this.options.cancellation?.create(operationId);\n    try {\n    const result = await this.ensureToolLoop().run(input, defaultFunctionToolSpecs(), this.executor, [
       "Olet Toni AI Agent, paikallinen ensisijaisesti suomenkielinen tekninen avustaja.",
       "Inspect before editing. Älä arvaa. Käytä vain annettuja työkaluja.",
       "Työkalut ovat turvallisuusvalvottuja. Hyväksyntää vaativaa toimintoa ei saa kiertää.",
