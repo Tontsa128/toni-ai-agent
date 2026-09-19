@@ -5,11 +5,14 @@ import { createAppPaths } from "../config/paths.js";
 import { ToniDatabase } from "../storage/Database.js";
 import { verifyDatabase } from "../storage/DatabaseHealth.js";
 import { verifyAuditChain } from "../agent/audit/verifyAuditChain.js";
+import { ProcessLock } from "../app/lifecycle/ProcessLock.js";
 
 export async function restoreBackup(dir: string): Promise<void> {
   const p = createAppPaths();
-  const source = join(resolve(dir), "toni.sqlite");
-  await access(source, constants.R_OK);
+  const processLock = await ProcessLock.acquire(join(p.dataRoot, "toni-agent.lock"));
+  try {
+    const source = join(resolve(dir), "toni.sqlite");
+    await access(source, constants.R_OK);
   await mkdir(join(p.dataRoot, "database"), { recursive: true });
 
   const validationFile = join(p.dataRoot, "database", ".restore-validation.sqlite");
@@ -28,7 +31,19 @@ export async function restoreBackup(dir: string): Promise<void> {
 
   const liveDatabase = new ToniDatabase(p.databaseFile);
   liveDatabase.close();
-  await copyFile(source, p.databaseFile);
+    await copyFile(source, p.databaseFile);
+
+    const restoredDb = new ToniDatabase(p.databaseFile);
+    try {
+      restoredDb.initialize();
+      verifyDatabase(restoredDb.connection());
+      verifyAuditChain(restoredDb.connection());
+    } finally {
+      restoredDb.close();
+    }
+  } finally {
+    await processLock.release();
+  }
 }
 
 const directory = process.argv[2];
