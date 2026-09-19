@@ -58,6 +58,7 @@ export class AuditRepository {
       const rows = this.db.prepare("SELECT id, hash FROM audit_events WHERE created_at <= ? ORDER BY id ASC").all(cutoff) as Array<{ id: number; hash: string }>;
       if (rows.length === 0) return { retained: 0, removed: 0 };
       const boundary = rows[rows.length - 1];
+      if (!boundary) return { retained: Number((this.db.prepare("SELECT COUNT(*) AS count FROM audit_events").get() as { count: number }).count), removed: 0 };
       const next = this.db.prepare("SELECT id, previous_hash FROM audit_events WHERE id > ? ORDER BY id ASC LIMIT 1").get(boundary.id) as { id: number; previous_hash: string | null } | undefined;
       if (next) {
         // The first retained row depends on the deleted prefix. Preserve a cryptographic checkpoint
