@@ -5,6 +5,7 @@ import { CostBudget } from "../limits/CostBudget.js";
 import { ProviderBudget } from "../limits/ProviderBudget.js";
 import { estimateModelCost } from "./ModelPricing.js";
 import { filterSensitiveContent } from "../privacy/ContentFilter.js";
+import { UNTRUSTED_CONTENT_INSTRUCTION, wrapUntrustedToolOutput } from "../security/UntrustedContentBoundary.js";
 
 export interface FunctionToolSpec { name: string; description: string; parameters: Record<string, unknown>; risk: "green" | "yellow" | "red"; }
 export interface ToolExecutionContext { name: string; argumentsJson: string; callId: string; requestId?: string; }
@@ -37,7 +38,7 @@ export class OpenAIToolLoop {
   async run(input: AgentInput, tools: FunctionToolSpec[], executor: ToolExecutor, instructions?: string, previousResponseId?: string, requestId?: string): Promise<ToolLoopResult> {
     const response = await this.createResponse({
       model: this.model,
-      ...(instructions ? { instructions } : {}),
+      instructions: [UNTRUSTED_CONTENT_INSTRUCTION, instructions].filter(Boolean).join("\n"),
       input: this.toResponsesInput(input),
       ...(previousResponseId ? { previous_response_id: previousResponseId } : {}),
       tools: this.toolDefinitions(tools)
@@ -49,7 +50,7 @@ export class OpenAIToolLoop {
     const response = await this.createResponse({
       model: this.model,
       previous_response_id: responseId,
-      input: [{ type: "function_call_output" as const, call_id: callId, output: JSON.stringify({ ok: result.ok, approved: result.approved, result: result.output }) }],
+      input: [{ type: "function_call_output" as const, call_id: callId, output: JSON.stringify({ ok: result.ok, approved: result.approved, result: wrapUntrustedToolOutput(result.output) }) }],
       tools: this.toolDefinitions(tools)
     });
     return this.processResponse(response, tools, executor, 1, 1, requestId);
@@ -108,7 +109,7 @@ export class OpenAIToolLoop {
         if (!result.approved && this.isApprovalRequired(result.output)) {
           return { responseId: response.id, text: "Hyväksyntä tarvitaan ennen tämän toiminnon suorittamista.", turns: turn, toolCalls, pendingApproval: { actionId: String(result.output.actionId), responseId: response.id, callId: item.call_id } };
         }
-        outputs.push({ type: "function_call_output", call_id: item.call_id, output: JSON.stringify({ ok: result.ok, approved: result.approved, result: result.output }) });
+        outputs.push({ type: "function_call_output", call_id: item.call_id, output: JSON.stringify({ ok: result.ok, approved: result.approved, result: wrapUntrustedToolOutput(result.output) }) });
       }
       response = await this.createResponse({ model: this.model, previous_response_id: response.id, input: outputs, tools: this.toolDefinitions(tools) });
     }
