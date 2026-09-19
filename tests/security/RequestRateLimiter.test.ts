@@ -14,5 +14,5 @@ test("rate limiter blocks requests after the configured window quota", () => {
 test("rate limiter allows a request after the oldest entry expires", () => {
   const limiter = new RequestRateLimiter(60_000);
   limiter.consume("client", 1, 1_000);
-  assert.equal(limiter.consume("client", 1, 60_001).allowed, true);
+  assert.equal(limiter.consume("client", 1, 61_001).allowed, true);
 });
