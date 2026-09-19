@@ -1,6 +1,5 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
 import { basename, dirname } from "node:path";
 import { migrationPath } from "../../storage/Database.js";
 
