@@ -182,7 +182,7 @@ export async function createApplication(workspace?: string): Promise<Application
         return new InteractiveSession({
           model: config.openAiModel, workspace: resolvedWorkspace, orchestrator, executor, toolRegistry: registry,
           costBudget: new CostBudget(config.maxInputTokens, config.maxOutputTokens, config.maxSessionUsd),
-          providerBudget: new ProviderBudget(config.maxProviderRequests)
+          providerBudget: new ProviderBudget(config.maxProviderRequests),\n          cancellation: new CancellationRegistry()
         });
       }
     };
